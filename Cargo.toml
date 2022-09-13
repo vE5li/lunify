@@ -12,7 +12,8 @@ license = "MIT"
 
 [dependencies]
 serde = { version = "1.0.144", features = ["serde_derive"], optional = true }
-mlua = { version = "0.8", features = ["lua51", "vendored"] }
+mlua = { version = "0.8", features = ["lua51", "vendored"], optional = true }
 
 [features]
 debug = []
+integration = ["mlua"]

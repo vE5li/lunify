@@ -71,8 +71,6 @@ pub fn unify(input_bytes: Vec<u8>, output_format: Format) -> Result<Vec<u8>, Lun
 #[cfg(test)]
 mod tests {
 
-    use mlua::prelude::*;
-
     use super::{unify, Format, LunifyError};
 
     #[test]
@@ -91,13 +89,19 @@ mod tests {
     #[test]
     fn lua50_to_lua51() -> Result<(), LunifyError> {
 
+        #[cfg(feature = "integration")]
+        use mlua::prelude::*;
+
         let input_bytes = include_bytes!("../test_files/lua50.luab");
         let output_format = Format::default();
         let output_bytes = unify(input_bytes.to_vec(), output_format)?;
 
-        let lua = Lua::new();
-        lua.load(&output_bytes).exec().unwrap();
-        assert_eq!(lua.globals().get::<_, LuaNumber>("bar").unwrap(), 14.0);
+        #[cfg(feature = "integration")]
+        {
+            let lua = Lua::new();
+            lua.load(&output_bytes).exec().unwrap();
+            assert_eq!(lua.globals().get::<_, LuaNumber>("bar").unwrap(), 14.0);
+        }
 
         Ok(())
     }
