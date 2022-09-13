@@ -43,6 +43,7 @@ impl ByteWriter {
     pub fn instruction(&mut self, instruction: u64) {
         match self.format.instruction_size {
             4 => self.slice(&(instruction as u32).to_le_bytes()),
+            8 => self.slice(&instruction.to_le_bytes()),
             _ => unreachable!(),
         }
     }

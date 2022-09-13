@@ -5,7 +5,7 @@ use crate::{Format, LunifyError};
 pub(crate) struct ByteStream<'a> {
     data: &'a [u8],
     offset: usize,
-    format: Option<Format>,
+    format: Format,
 }
 
 impl<'a> ByteStream<'a> {
@@ -13,7 +13,7 @@ impl<'a> ByteStream<'a> {
     pub fn new(data: &'a [u8]) -> Self {
 
         let offset = 0;
-        let format = None;
+        let format = Format::default();
 
         Self { data, offset, format }
     }
@@ -21,7 +21,7 @@ impl<'a> ByteStream<'a> {
     pub fn set_format(&mut self, format: Format) -> Result<(), LunifyError> {
 
         format.assert_supported()?;
-        self.format = Some(format);
+        self.format = format;
         Ok(())
     }
 
@@ -34,41 +34,37 @@ impl<'a> ByteStream<'a> {
 
     fn number_from_slice(slice: &[u8]) -> i64 {
         match slice.len() {
-
-            4 => {
-                i32::from_le_bytes(slice.try_into().unwrap()) as i64
-            }
-
-            8 => {
-                i64::from_le_bytes(slice.try_into().unwrap())
-            }
-
+            4 => i32::from_le_bytes(slice.try_into().unwrap()) as i64,
+            8 => i64::from_le_bytes(slice.try_into().unwrap()),
             _ => unreachable!(),
         }
     }
 
     pub fn integer(&mut self) -> Result<i64, LunifyError> {
 
-        let slice = self.slice(self.format.unwrap().integer_size as usize)?;
+        let slice = self.slice(self.format.integer_size as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn size_t(&mut self) -> Result<i64, LunifyError> {
 
-        let slice = self.slice(self.format.unwrap().size_t_size as usize)?;
+        let slice = self.slice(self.format.size_t_size as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn instruction(&mut self) -> Result<u64, LunifyError> {
 
-        let slice = self.slice(self.format.unwrap().instruction_size as usize)?;
-        let instruction = u32::from_le_bytes(slice.try_into().unwrap());
-        Ok(instruction as u64)
+        let slice = self.slice(self.format.instruction_size as usize)?;
+        match slice.len() {
+            4 => Ok(u32::from_le_bytes(slice.try_into().unwrap()) as u64),
+            8 => Ok(u64::from_le_bytes(slice.try_into().unwrap())),
+            _ => unreachable!(),
+        }
     }
 
     pub fn number(&mut self) -> Result<i64, LunifyError> {
 
-        let slice = self.slice(self.format.unwrap().number_size as usize)?;
+        let slice = self.slice(self.format.number_size as usize)?;
         let integer = i64::from_le_bytes(slice.try_into().unwrap());
         Ok(integer)
     }
@@ -97,5 +93,11 @@ impl<'a> ByteStream<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.offset >= self.data.len()
+    }
+
+    pub fn set_number_format(&mut self, endianness: u8, number_size: u8) {
+
+        self.format.endianness = endianness;
+        self.format.number_size = number_size;
     }
 }

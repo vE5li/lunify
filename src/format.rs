@@ -1,8 +1,13 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::stream::ByteStream;
 use crate::writer::ByteWriter;
 use crate::LunifyError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Lua bytecode format.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Format {
     pub format: u8,
     pub endianness: u8,
@@ -13,9 +18,14 @@ pub struct Format {
     pub is_number_integral: u8,
 }
 
-impl Format {
+impl Default for Format {
 
-    pub fn default_with_size_t(size_t_size: u8) -> Self {
+    fn default() -> Self {
+
+        let size_t_size = match cfg!(target_pointer_width = "64") {
+            true => 8,
+            false => 4,
+        };
 
         Self {
             format: 0,
@@ -27,16 +37,39 @@ impl Format {
             is_number_integral: 0,
         }
     }
+}
 
-    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream) -> Result<Self, LunifyError> {
+impl Format {
 
-        let format = byte_stream.byte()?;
+    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
+
+        let format = match version {
+            0x51 => byte_stream.byte()?,
+            0x50 => 0,
+            _ => unreachable!(),
+        };
+
         let endianness = byte_stream.byte()?;
         let integer_size = byte_stream.byte()?;
         let size_t_size = byte_stream.byte()?;
         let instruction_size = byte_stream.byte()?;
+
+        if version == 0x50 {
+
+            let format = byte_stream.slice(4)?;
+            if format[0] != 6 || format[1] != 8 || format[2] != 9 || format[3] != 9 {
+                return Err(LunifyError::UnsupportedInstructionFormat(format.try_into().unwrap()));
+            }
+        }
+
         let number_size = byte_stream.byte()?;
-        let is_number_integral = byte_stream.byte()?;
+        byte_stream.set_number_format(endianness, number_size);
+
+        let is_number_integral = match version {
+            0x51 => byte_stream.byte()?,
+            0x50 => byte_stream.number()? as u8, // TODO: some check
+            _ => unreachable!(),
+        };
 
         #[cfg(feature = "debug")]
         println!("format: {}", format);
@@ -85,7 +118,7 @@ impl Format {
             return Err(LunifyError::UnsupportedSizeTSize(self.size_t_size));
         }
 
-        if self.instruction_size != 4 {
+        if self.instruction_size != 4 && self.instruction_size != 8 {
             return Err(LunifyError::UnsupportedInstructionSize(self.instruction_size));
         }
 

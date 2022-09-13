@@ -1,11 +1,18 @@
 [package]
 name = "lunify"
+description = "A crate for converting Lua bytecode to different versions and formats"
+categories = ["encoding"]
+keywords = ["lua", "bytecode"]
 version = "0.1.0"
 edition = "2021"
+homepage = "https://github.com/vE5li/lunify"
+repository = "https://github.com/vE5li/lunify"
+readme = "README.md"
+license = "MIT"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+serde = { version = "1.0.144", features = ["serde_derive"], optional = true }
+mlua = { version = "0.8", features = ["lua51", "vendored"] }
 
 [features]
 debug = []
-
-[dependencies]
