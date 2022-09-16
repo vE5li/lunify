@@ -88,6 +88,10 @@ impl<'a> ByteStream<'a> {
 
         self.offset += length;
 
+        if self.offset > self.data.len() {
+            return Err(LunifyError::TooShort);
+        }
+
         Ok(self.data[start..self.offset].iter().map(|&byte| byte as char).collect())
     }
 
