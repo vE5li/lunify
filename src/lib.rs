@@ -14,11 +14,11 @@ use writer::ByteWriter;
 
 const LUA_SIGNATURE: &[u8; 4] = b"\x1bLua";
 
-/// Takes Lua bytecode in a supported format as a `Vec` and converts it to bytecode in the specified output
+/// Takes Lua bytecode in a supported format and converts it to bytecode in the specified output
 /// [Format]. Returns [LunifyError] on error.
-pub fn unify(input_bytes: Vec<u8>, output_format: Format) -> Result<Vec<u8>, LunifyError> {
+pub fn unify(input_bytes: &[u8], output_format: Format) -> Result<Vec<u8>, LunifyError> {
 
-    let mut byte_stream = ByteStream::new(&input_bytes);
+    let mut byte_stream = ByteStream::new(input_bytes);
 
     let signature = byte_stream.slice(LUA_SIGNATURE.len())?;
 
@@ -39,7 +39,7 @@ pub fn unify(input_bytes: Vec<u8>, output_format: Format) -> Result<Vec<u8>, Lun
 
     // if the input is already in the correct format, return it as is
     if input_format == output_format && !cfg!(test) {
-        return Ok(input_bytes);
+        return Ok(input_bytes.to_vec());
     }
 
     byte_stream.set_format(input_format)?;
@@ -74,7 +74,7 @@ mod tests {
             size_t_size: 8,
             ..Default::default()
         };
-        let _output_bytes = unify(input_bytes.to_vec(), output_format)?;
+        let _output_bytes = unify(input_bytes, output_format)?;
 
         Ok(())
     }
@@ -88,7 +88,7 @@ mod tests {
 
         let input_bytes = include_bytes!("../test_files/lua50.luab");
         let output_format = Format::default();
-        let output_bytes = unify(input_bytes.to_vec(), output_format)?;
+        let output_bytes = unify(input_bytes, output_format)?;
 
         #[cfg(feature = "integration")]
         {
@@ -108,7 +108,7 @@ mod tests {
             size_t_size: 4,
             ..Default::default()
         };
-        let output_bytes = unify(input_bytes.to_vec(), output_format)?;
+        let output_bytes = unify(input_bytes, output_format)?;
 
         assert_eq!(&input_bytes[..], &output_bytes[..]);
 

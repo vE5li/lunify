@@ -18,5 +18,5 @@ let input_bytes = include_bytes!("../test_files/lua50.luab");
 let output_format = Format::default();
 
 // Convert input bytes to the desired format
-let output_bytes: Result<Vec<u8>, LunifyError> = unify(input_bytes.to_vec(), output_format);
+let output_bytes: Result<Vec<u8>, LunifyError> = unify(input_bytes, output_format);
 ```
