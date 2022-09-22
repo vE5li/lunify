@@ -1,11 +1,4 @@
-//! A crate for converting Lua bytecode to different versions and formats.
-//!
-//! # Usage
-//!
-//! This crate only exposes one function and two types. The function is called `unify` and it is used to
-//! convert Lua bytecode from a supported format to a specified output format.
-//!
-//! Currently only Lua 5.0 and Lua 5.1 are supported inputs
+#![doc = include_str!("../README.md")]
 
 mod error;
 mod format;
