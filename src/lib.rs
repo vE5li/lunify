@@ -80,6 +80,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(unused_variables)]
     fn lua50_to_lua51() -> Result<(), LunifyError> {
 
         #[cfg(feature = "integration")]
