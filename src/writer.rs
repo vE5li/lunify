@@ -6,9 +6,7 @@ pub(crate) struct ByteWriter {
 }
 
 impl ByteWriter {
-
     pub fn new(format: Format) -> Result<Self, LunifyError> {
-
         format.assert_supported()?;
 
         let data = Vec::new();
@@ -57,7 +55,6 @@ impl ByteWriter {
     }
 
     pub fn string(&mut self, value: &str) {
-
         self.size_t(value.len() as i64);
         self.slice(value.as_bytes());
     }

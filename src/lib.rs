@@ -14,10 +14,9 @@ use writer::ByteWriter;
 
 const LUA_SIGNATURE: &[u8; 4] = b"\x1bLua";
 
-/// Takes Lua bytecode in a supported format and converts it to bytecode in the specified output
-/// [Format]. Returns [LunifyError] on error.
+/// Takes Lua bytecode in a supported format and converts it to bytecode in the
+/// specified output [Format]. Returns [LunifyError] on error.
 pub fn unify(input_bytes: &[u8], output_format: Format) -> Result<Vec<u8>, LunifyError> {
-
     let mut byte_stream = ByteStream::new(input_bytes);
 
     let signature = byte_stream.slice(LUA_SIGNATURE.len())?;
@@ -68,7 +67,6 @@ mod tests {
 
     #[test]
     fn _32bit_to_64bit() -> Result<(), LunifyError> {
-
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
             size_t_size: 8,
@@ -82,7 +80,6 @@ mod tests {
     #[test]
     #[allow(unused_variables)]
     fn lua50_to_lua51() -> Result<(), LunifyError> {
-
         #[cfg(feature = "integration")]
         use mlua::prelude::*;
 
@@ -102,7 +99,6 @@ mod tests {
 
     #[test]
     fn matching_format_remains_unchanged() -> Result<(), LunifyError> {
-
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
             size_t_size: 4,

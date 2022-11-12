@@ -19,9 +19,7 @@ pub struct Format {
 }
 
 impl Default for Format {
-
     fn default() -> Self {
-
         let size_t_size = match cfg!(target_pointer_width = "64") {
             true => 8,
             false => 4,
@@ -40,9 +38,7 @@ impl Default for Format {
 }
 
 impl Format {
-
     pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
-
         let format = match version {
             0x51 => byte_stream.byte()?,
             0x50 => 0,
@@ -55,7 +51,6 @@ impl Format {
         let instruction_size = byte_stream.byte()?;
 
         if version == 0x50 {
-
             let format = byte_stream.slice(4)?;
             if format[0] != 6 || format[1] != 8 || format[2] != 9 || format[3] != 9 {
                 return Err(LunifyError::UnsupportedInstructionFormat(format.try_into().unwrap()));
@@ -98,7 +93,6 @@ impl Format {
     }
 
     pub(crate) fn write(&self, byte_writer: &mut ByteWriter) {
-
         byte_writer.byte(self.format);
         byte_writer.byte(self.endianness);
         byte_writer.byte(self.integer_size);
@@ -109,7 +103,6 @@ impl Format {
     }
 
     pub fn assert_supported(&self) -> Result<(), LunifyError> {
-
         if self.integer_size != 4 && self.integer_size != 8 {
             return Err(LunifyError::UnsupportedIntegerSize(self.integer_size));
         }

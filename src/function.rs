@@ -13,9 +13,7 @@ enum Constant {
 struct Instruction(u64);
 
 impl Instruction {
-
     pub fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
-
         let instruction = byte_stream.instruction()?;
 
         #[cfg(feature = "debug")]
@@ -62,7 +60,6 @@ impl Instruction {
             // Bx instructions
             instruction |= bx << 14;
         } else {
-
             // TODO: implement correct logic
             if b > 200 {
                 b = (b + 6) & 0b111111111;
@@ -111,9 +108,7 @@ pub struct Function {
 }
 
 impl Function {
-
     fn get_instructions(byte_stream: &mut ByteStream, version: u8) -> Result<Vec<Instruction>, LunifyError> {
-
         let instruction_count = byte_stream.integer()?;
         let mut instructions = Vec::new();
 
@@ -121,7 +116,6 @@ impl Function {
         println!("instruction_count: {}", instruction_count);
 
         for _index in 0..instruction_count as usize {
-
             let instruction = Instruction::from_byte_stream(byte_stream, version)?;
 
             #[cfg(feature = "debug")]
@@ -134,7 +128,6 @@ impl Function {
     }
 
     fn get_constants(byte_stream: &mut ByteStream) -> Result<Vec<Constant>, LunifyError> {
-
         let constant_count = byte_stream.integer()?;
         let mut constants = Vec::new();
 
@@ -142,13 +135,10 @@ impl Function {
         println!("constant_count: {}", constant_count);
 
         for _index in 0..constant_count as usize {
-
             let constant_type = byte_stream.byte()?;
 
             match constant_type {
-
                 0 => {
-
                     constants.push(Constant::Nil);
 
                     #[cfg(feature = "debug")]
@@ -156,7 +146,6 @@ impl Function {
                 }
 
                 1 => {
-
                     let boolean = byte_stream.byte()?;
 
                     #[cfg(feature = "debug")]
@@ -166,7 +155,6 @@ impl Function {
                 }
 
                 3 => {
-
                     let number = byte_stream.number()?;
 
                     #[cfg(feature = "debug")]
@@ -176,7 +164,6 @@ impl Function {
                 }
 
                 4 => {
-
                     // string
                     let string = byte_stream.string()?; // TODO: find a way to make
                     //
@@ -194,7 +181,6 @@ impl Function {
     }
 
     fn get_functions(byte_stream: &mut ByteStream, version: u8) -> Result<Vec<Function>, LunifyError> {
-
         let function_count = byte_stream.integer()?;
         let mut functions = Vec::new();
 
@@ -202,7 +188,6 @@ impl Function {
         println!("function_count: {}", function_count);
 
         for _index in 0..function_count as usize {
-
             let function = Function::from_byte_stream(byte_stream, version)?;
             functions.push(function);
         }
@@ -211,7 +196,6 @@ impl Function {
     }
 
     fn get_local_variables(byte_stream: &mut ByteStream) -> Result<Vec<LocalVariable>, LunifyError> {
-
         let local_variable_count = byte_stream.integer()?;
         let mut local_variables = Vec::new();
 
@@ -219,7 +203,6 @@ impl Function {
         println!("local_variable_count: {}", local_variable_count);
 
         for _index in 0..local_variable_count as usize {
-
             let name = byte_stream.string()?;
             let start_program_counter = byte_stream.integer()?;
             let end_program_counter = byte_stream.integer()?;
@@ -243,7 +226,6 @@ impl Function {
     }
 
     fn get_line_info(byte_stream: &mut ByteStream) -> Result<Vec<i64>, LunifyError> {
-
         let line_info_count = byte_stream.integer()?;
         let mut line_info = Vec::new();
 
@@ -251,7 +233,6 @@ impl Function {
         println!("line_info_count: {}", line_info_count);
 
         for _index in 0..line_info_count as usize {
-
             let line = byte_stream.integer()?;
 
             #[cfg(feature = "debug")]
@@ -264,7 +245,6 @@ impl Function {
     }
 
     fn get_upvalues(byte_stream: &mut ByteStream) -> Result<Vec<String>, LunifyError> {
-
         let upvalue_count = byte_stream.integer()?;
         let mut upvalues = Vec::new();
 
@@ -272,7 +252,6 @@ impl Function {
         println!("upvalue_count: {}", upvalue_count);
 
         for _index in 0..upvalue_count as usize {
-
             let upvalue = byte_stream.string()?;
 
             #[cfg(feature = "debug")]
@@ -285,7 +264,6 @@ impl Function {
     }
 
     pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
-
         let source_file = byte_stream.string()?;
         let line_defined = byte_stream.integer()?;
 
@@ -316,7 +294,6 @@ impl Function {
         println!("maxstacksize: {}", maxstacksize);
 
         let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == 0x51 {
-
             let instructions = Self::get_instructions(byte_stream, version)?;
             let constants = Self::get_constants(byte_stream)?;
             let functions = Self::get_functions(byte_stream, version)?;
@@ -326,7 +303,6 @@ impl Function {
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
         } else {
-
             let line_info = Self::get_line_info(byte_stream)?;
             let local_variables = Self::get_local_variables(byte_stream)?;
             let upvalues = Self::get_upvalues(byte_stream)?;
@@ -355,7 +331,6 @@ impl Function {
     }
 
     pub(crate) fn write(self, byte_writer: &mut ByteWriter) {
-
         // function
         byte_writer.string(&self.source_file);
         byte_writer.integer(self.line_defined);
@@ -375,25 +350,21 @@ impl Function {
         byte_writer.integer(self.constants.len() as i64);
         for constant in self.constants {
             match constant {
-
                 Constant::Nil => {
                     byte_writer.byte(0);
                 }
 
                 Constant::Boolean(boolean) => {
-
                     byte_writer.byte(1);
                     byte_writer.byte(boolean);
                 }
 
                 Constant::Number(number) => {
-
                     byte_writer.byte(3);
                     byte_writer.number(number);
                 }
 
                 Constant::String(string) => {
-
                     byte_writer.byte(4);
                     byte_writer.string(&string);
                 }
@@ -415,7 +386,6 @@ impl Function {
         // local variables
         byte_writer.integer(self.local_variables.len() as i64);
         for local_variable in self.local_variables {
-
             byte_writer.string(&local_variable.name);
             byte_writer.integer(local_variable.start_program_counter);
             byte_writer.integer(local_variable.end_program_counter);

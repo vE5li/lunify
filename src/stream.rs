@@ -9,9 +9,7 @@ pub(crate) struct ByteStream<'a> {
 }
 
 impl<'a> ByteStream<'a> {
-
     pub fn new(data: &'a [u8]) -> Self {
-
         let offset = 0;
         let format = Format::default();
 
@@ -19,14 +17,12 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn set_format(&mut self, format: Format) -> Result<(), LunifyError> {
-
         format.assert_supported()?;
         self.format = format;
         Ok(())
     }
 
     pub fn byte(&mut self) -> Result<u8, LunifyError> {
-
         let offset = self.offset;
         self.offset += 1;
         self.data.get(offset).cloned().ok_or(LunifyError::TooShort)
@@ -41,19 +37,16 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn integer(&mut self) -> Result<i64, LunifyError> {
-
         let slice = self.slice(self.format.integer_size as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn size_t(&mut self) -> Result<i64, LunifyError> {
-
         let slice = self.slice(self.format.size_t_size as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn instruction(&mut self) -> Result<u64, LunifyError> {
-
         let slice = self.slice(self.format.instruction_size as usize)?;
         match slice.len() {
             4 => Ok(u32::from_le_bytes(slice.try_into().unwrap()) as u64),
@@ -63,14 +56,12 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn number(&mut self) -> Result<i64, LunifyError> {
-
         let slice = self.slice(self.format.number_size as usize)?;
         let integer = i64::from_le_bytes(slice.try_into().unwrap());
         Ok(integer)
     }
 
     pub fn slice(&mut self, length: usize) -> Result<&[u8], LunifyError> {
-
         let start = self.offset;
         self.offset += length;
 
@@ -82,7 +73,6 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn string(&mut self) -> Result<String, LunifyError> {
-
         let length = self.size_t()? as usize;
         let start = self.offset;
 
@@ -100,7 +90,6 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn set_number_format(&mut self, endianness: u8, number_size: u8) {
-
         self.format.endianness = endianness;
         self.format.number_size = number_size;
     }
