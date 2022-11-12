@@ -23,7 +23,7 @@ impl ByteWriter {
     }
 
     pub fn integer(&mut self, value: i64) {
-        match self.format.integer_size {
+        match self.format.integer_width {
             4 => self.slice(&(value as i32).to_le_bytes()),
             8 => self.slice(&value.to_le_bytes()),
             _ => unreachable!(),
@@ -31,7 +31,7 @@ impl ByteWriter {
     }
 
     pub fn size_t(&mut self, value: i64) {
-        match self.format.size_t_size {
+        match self.format.size_t_width {
             4 => self.slice(&(value as i32).to_le_bytes()),
             8 => self.slice(&value.to_le_bytes()),
             _ => unreachable!(),
@@ -39,7 +39,7 @@ impl ByteWriter {
     }
 
     pub fn instruction(&mut self, instruction: u64) {
-        match self.format.instruction_size {
+        match self.format.instruction_width {
             4 => self.slice(&(instruction as u32).to_le_bytes()),
             8 => self.slice(&instruction.to_le_bytes()),
             _ => unreachable!(),
@@ -47,7 +47,7 @@ impl ByteWriter {
     }
 
     pub fn number(&mut self, value: i64) {
-        match self.format.number_size {
+        match self.format.number_width {
             4 => self.slice(&(value as i32).to_le_bytes()),
             8 => self.slice(&value.to_le_bytes()),
             _ => unreachable!(),

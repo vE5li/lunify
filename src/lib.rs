@@ -69,7 +69,7 @@ mod tests {
     fn _32bit_to_64bit() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
-            size_t_size: 8,
+            size_t_width: 8,
             ..Default::default()
         };
         let _output_bytes = unify(input_bytes, output_format)?;
@@ -101,7 +101,7 @@ mod tests {
     fn matching_format_remains_unchanged() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
-            size_t_size: 4,
+            size_t_width: 4,
             ..Default::default()
         };
         let output_bytes = unify(input_bytes, output_format)?;

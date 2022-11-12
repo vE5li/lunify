@@ -11,10 +11,10 @@ use crate::LunifyError;
 pub struct Format {
     pub format: u8,
     pub endianness: u8,
-    pub integer_size: u8,
-    pub size_t_size: u8,
-    pub instruction_size: u8,
-    pub number_size: u8,
+    pub integer_width: u8,
+    pub size_t_width: u8,
+    pub instruction_width: u8,
+    pub number_width: u8,
     pub is_number_integral: u8,
 }
 
@@ -28,10 +28,10 @@ impl Default for Format {
         Self {
             format: 0,
             endianness: 1,
-            integer_size: 4,
-            size_t_size,
-            instruction_size: 4,
-            number_size: 8,
+            integer_width: 4,
+            size_t_width: size_t_size,
+            instruction_width: 4,
+            number_width: 8,
             is_number_integral: 0,
         }
     }
@@ -46,9 +46,9 @@ impl Format {
         };
 
         let endianness = byte_stream.byte()?;
-        let integer_size = byte_stream.byte()?;
-        let size_t_size = byte_stream.byte()?;
-        let instruction_size = byte_stream.byte()?;
+        let integer_width = byte_stream.byte()?;
+        let size_t_width = byte_stream.byte()?;
+        let instruction_width = byte_stream.byte()?;
 
         if version == 0x50 {
             let format = byte_stream.slice(4)?;
@@ -57,8 +57,8 @@ impl Format {
             }
         }
 
-        let number_size = byte_stream.byte()?;
-        byte_stream.set_number_format(endianness, number_size);
+        let number_width = byte_stream.byte()?;
+        byte_stream.set_number_format(endianness, number_width);
 
         let is_number_integral = match version {
             0x51 => byte_stream.byte()?,
@@ -71,23 +71,23 @@ impl Format {
         #[cfg(feature = "debug")]
         println!("endianness: {}", endianness);
         #[cfg(feature = "debug")]
-        println!("integer_size: {}", integer_size);
+        println!("integer_size: {}", integer_width);
         #[cfg(feature = "debug")]
-        println!("size_t_size: {}", size_t_size);
+        println!("size_t_size: {}", size_t_width);
         #[cfg(feature = "debug")]
-        println!("instruction_size: {}", instruction_size);
+        println!("instruction_size: {}", instruction_width);
         #[cfg(feature = "debug")]
-        println!("number_size: {}", number_size);
+        println!("number_size: {}", number_width);
         #[cfg(feature = "debug")]
         println!("is_number_integral: {}", is_number_integral);
 
         Ok(Self {
             format,
             endianness,
-            integer_size,
-            size_t_size,
-            instruction_size,
-            number_size,
+            integer_width,
+            size_t_width,
+            instruction_width,
+            number_width,
             is_number_integral,
         })
     }
@@ -95,28 +95,28 @@ impl Format {
     pub(crate) fn write(&self, byte_writer: &mut ByteWriter) {
         byte_writer.byte(self.format);
         byte_writer.byte(self.endianness);
-        byte_writer.byte(self.integer_size);
-        byte_writer.byte(self.size_t_size);
-        byte_writer.byte(self.instruction_size);
-        byte_writer.byte(self.number_size);
+        byte_writer.byte(self.integer_width);
+        byte_writer.byte(self.size_t_width);
+        byte_writer.byte(self.instruction_width);
+        byte_writer.byte(self.number_width);
         byte_writer.byte(self.is_number_integral);
     }
 
     pub fn assert_supported(&self) -> Result<(), LunifyError> {
-        if self.integer_size != 4 && self.integer_size != 8 {
-            return Err(LunifyError::UnsupportedIntegerSize(self.integer_size));
+        if self.integer_width != 4 && self.integer_width != 8 {
+            return Err(LunifyError::UnsupportedIntegerSize(self.integer_width));
         }
 
-        if self.size_t_size != 4 && self.size_t_size != 8 {
-            return Err(LunifyError::UnsupportedSizeTSize(self.size_t_size));
+        if self.size_t_width != 4 && self.size_t_width != 8 {
+            return Err(LunifyError::UnsupportedSizeTSize(self.size_t_width));
         }
 
-        if self.instruction_size != 4 && self.instruction_size != 8 {
-            return Err(LunifyError::UnsupportedInstructionSize(self.instruction_size));
+        if self.instruction_width != 4 && self.instruction_width != 8 {
+            return Err(LunifyError::UnsupportedInstructionSize(self.instruction_width));
         }
 
-        if self.number_size != 4 && self.number_size != 8 {
-            return Err(LunifyError::UnsupportedNumberSize(self.number_size));
+        if self.number_width != 4 && self.number_width != 8 {
+            return Err(LunifyError::UnsupportedNumberSize(self.number_width));
         }
 
         Ok(())

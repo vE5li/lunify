@@ -37,17 +37,17 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn integer(&mut self) -> Result<i64, LunifyError> {
-        let slice = self.slice(self.format.integer_size as usize)?;
+        let slice = self.slice(self.format.integer_width as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn size_t(&mut self) -> Result<i64, LunifyError> {
-        let slice = self.slice(self.format.size_t_size as usize)?;
+        let slice = self.slice(self.format.size_t_width as usize)?;
         Ok(Self::number_from_slice(slice))
     }
 
     pub fn instruction(&mut self) -> Result<u64, LunifyError> {
-        let slice = self.slice(self.format.instruction_size as usize)?;
+        let slice = self.slice(self.format.instruction_width as usize)?;
         match slice.len() {
             4 => Ok(u32::from_le_bytes(slice.try_into().unwrap()) as u64),
             8 => Ok(u64::from_le_bytes(slice.try_into().unwrap())),
@@ -56,7 +56,7 @@ impl<'a> ByteStream<'a> {
     }
 
     pub fn number(&mut self) -> Result<i64, LunifyError> {
-        let slice = self.slice(self.format.number_size as usize)?;
+        let slice = self.slice(self.format.number_width as usize)?;
         let integer = i64::from_le_bytes(slice.try_into().unwrap());
         Ok(integer)
     }
@@ -91,6 +91,6 @@ impl<'a> ByteStream<'a> {
 
     pub fn set_number_format(&mut self, endianness: u8, number_size: u8) {
         self.format.endianness = endianness;
-        self.format.number_size = number_size;
+        self.format.number_width = number_size;
     }
 }
