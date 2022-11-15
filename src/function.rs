@@ -1,105 +1,31 @@
+use crate::instruction::{lua50, upcast, RepresentInstruction, Settings};
+use crate::number::Number;
 use crate::stream::ByteStream;
+use crate::version::LuaVersion;
 use crate::writer::ByteWriter;
 use crate::LunifyError;
 
-enum Constant {
+pub(crate) enum Constant {
     Nil,
     Boolean(u8),
-    Number(i64),
+    Number(Number),
     String(String),
 }
 
-#[derive(Debug)]
-struct Instruction(u64);
-
-impl Instruction {
-    pub fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
-        let instruction = byte_stream.instruction()?;
-
-        #[cfg(feature = "debug")]
-        println!("\n{:0>32b}", instruction);
-
-        if version == 0x51 {
-            return Ok(Self(instruction));
-        }
-
-        let opcode = instruction & 0b111111;
-        let mut c = (instruction >> 6) & 0b111111111;
-        let mut b = (instruction >> 15) & 0b111111111;
-        let a = (instruction >> 24) & 0b11111111;
-        let bx = (instruction >> 6) & 0b111111111111111111;
-
-        let opcode = match opcode {
-            0..=15 => opcode,
-            16..=18 => opcode + 1,
-            19..=23 => opcode + 2,
-            24 => opcode + 2, // OP_TEST migth have changed in behaviour
-            25..=29 => opcode + 3,
-            30 => opcode + 4,
-            31 => 0, // T_FORPREP does not exist anymore
-            32 => opcode + 3,
-            33 => 0, // T_SETLIS0 does not exist anymore
-            34..=35 => opcode + 2,
-            invalid => return Err(LunifyError::InvalidOpcode(invalid)),
-        };
-
-        #[cfg(feature = "debug")]
-        println!("OPCODE {}", opcode);
-        #[cfg(feature = "debug")]
-        println!("A {}", a);
-        #[cfg(feature = "debug")]
-        println!("B {}", b);
-        #[cfg(feature = "debug")]
-        println!("C {}", c);
-
-        // create new final instruction
-        let mut instruction = opcode;
-        instruction |= a << 6;
-
-        if opcode == 1 {
-            // Bx instructions
-            instruction |= bx << 14;
-        } else {
-            // TODO: implement correct logic
-            if b > 200 {
-                b = (b + 6) & 0b111111111;
-            }
-
-            // TODO: implement correct logic
-            if c > 200 {
-                c = (c + 6) & 0b111111111;
-            }
-
-            instruction |= c << 14;
-            instruction |= b << 23;
-        }
-
-        #[cfg(feature = "debug")]
-        println!("{:0>32b}\n", instruction);
-
-        Ok(Self(instruction))
-    }
-
-    pub fn write(&self, byte_writer: &mut ByteWriter) {
-        byte_writer.instruction(self.0);
-    }
-}
-
-struct LocalVariable {
-    name: String,
-    start_program_counter: i64,
-    end_program_counter: i64,
+pub(crate) struct LocalVariable {
+    pub(crate) name: String,
+    pub(crate) start_program_counter: i64,
+    pub(crate) end_program_counter: i64,
 }
 
 pub struct Function {
     source_file: String,
     line_defined: i64,
     last_line_defined: i64,
-    nups: u8,
     parameter_count: u8,
-    is_variardic: u8,
+    is_variadic: u8,
     maxstacksize: u8,
-    instructions: Vec<Instruction>,
+    instructions: Vec<u64>,
     constants: Vec<Constant>,
     functions: Vec<Function>,
     local_variables: Vec<LocalVariable>,
@@ -108,7 +34,7 @@ pub struct Function {
 }
 
 impl Function {
-    fn get_instructions(byte_stream: &mut ByteStream, version: u8) -> Result<Vec<Instruction>, LunifyError> {
+    fn get_instructions<T: RepresentInstruction>(byte_stream: &mut ByteStream) -> Result<Vec<T>, LunifyError> {
         let instruction_count = byte_stream.integer()?;
         let mut instructions = Vec::new();
 
@@ -116,10 +42,10 @@ impl Function {
         println!("instruction_count: {}", instruction_count);
 
         for _index in 0..instruction_count as usize {
-            let instruction = Instruction::from_byte_stream(byte_stream, version)?;
+            let instruction = T::from_byte_stream(byte_stream)?;
 
             #[cfg(feature = "debug")]
-            println!("instruction[{}]: {:x?}", _index, instruction);
+            println!("instruction[{}]: {:x?}", _index, instruction.to_u64());
 
             instructions.push(instruction);
         }
@@ -158,15 +84,14 @@ impl Function {
                     let number = byte_stream.number()?;
 
                     #[cfg(feature = "debug")]
-                    println!("constant[{}] (int): {:?}", _index, number);
+                    println!("constant[{}] (number): {:?}", _index, number);
 
                     constants.push(Constant::Number(number));
                 }
 
                 4 => {
-                    // string
-                    let string = byte_stream.string()?; // TODO: find a way to make
-                    //
+                    let string = byte_stream.string()?;
+
                     #[cfg(feature = "debug")]
                     println!("constant[{}] (string) ({}): {:?}", _index, string.len(), string);
 
@@ -180,7 +105,7 @@ impl Function {
         Ok(constants)
     }
 
-    fn get_functions(byte_stream: &mut ByteStream, version: u8) -> Result<Vec<Function>, LunifyError> {
+    fn get_functions(byte_stream: &mut ByteStream, version: LuaVersion, settings: Settings) -> Result<Vec<Function>, LunifyError> {
         let function_count = byte_stream.integer()?;
         let mut functions = Vec::new();
 
@@ -188,7 +113,7 @@ impl Function {
         println!("function_count: {}", function_count);
 
         for _index in 0..function_count as usize {
-            let function = Function::from_byte_stream(byte_stream, version)?;
+            let function = Function::from_byte_stream(byte_stream, version, settings)?;
             functions.push(function);
         }
 
@@ -263,40 +188,35 @@ impl Function {
         Ok(upvalues)
     }
 
-    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: u8) -> Result<Self, LunifyError> {
+    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion, settings: Settings) -> Result<Self, LunifyError> {
         let source_file = byte_stream.string()?;
         let line_defined = byte_stream.integer()?;
 
         let last_line_defined = match version {
-            0x51 => byte_stream.integer()?,
-            0x50 => line_defined,
-            _ => unreachable!(),
+            LuaVersion::Lua51 => byte_stream.integer()?,
+            LuaVersion::Lua50 => line_defined,
         };
 
-        let nups = byte_stream.byte()?;
+        let _upvalue_count = byte_stream.byte()?;
         let parameter_count = byte_stream.byte()?;
-        let is_variardic = byte_stream.byte()?;
-        let maxstacksize = byte_stream.byte()?;
+        let mut is_variadic = byte_stream.byte()?;
+        let mut maxstacksize = byte_stream.byte()?;
 
         #[cfg(feature = "debug")]
-        println!("source_file: {}", source_file);
-        #[cfg(feature = "debug")]
-        println!("line_defined: {}", line_defined);
-        #[cfg(feature = "debug")]
-        println!("last_line_defined: {}", last_line_defined);
-        #[cfg(feature = "debug")]
-        println!("nups: {}", nups);
-        #[cfg(feature = "debug")]
-        println!("parameter_count: {}", parameter_count);
-        #[cfg(feature = "debug")]
-        println!("is_variardic: {}", is_variardic);
-        #[cfg(feature = "debug")]
-        println!("maxstacksize: {}", maxstacksize);
+        {
+            println!("source_file: {}", source_file);
+            println!("line_defined: {}", line_defined);
+            println!("last_line_defined: {}", last_line_defined);
+            println!("upvalue_count: {}", _upvalue_count);
+            println!("parameter_count: {}", parameter_count);
+            println!("is_variadic: {}", is_variadic);
+            println!("maxstacksize: {}", maxstacksize);
+        }
 
-        let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == 0x51 {
-            let instructions = Self::get_instructions(byte_stream, version)?;
+        let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == LuaVersion::Lua51 {
+            let instructions = Self::get_instructions(byte_stream)?;
             let constants = Self::get_constants(byte_stream)?;
-            let functions = Self::get_functions(byte_stream, version)?;
+            let functions = Self::get_functions(byte_stream, version, settings)?;
             let line_info = Self::get_line_info(byte_stream)?;
             let local_variables = Self::get_local_variables(byte_stream)?;
             let upvalues = Self::get_upvalues(byte_stream)?;
@@ -306,9 +226,24 @@ impl Function {
             let line_info = Self::get_line_info(byte_stream)?;
             let local_variables = Self::get_local_variables(byte_stream)?;
             let upvalues = Self::get_upvalues(byte_stream)?;
-            let constants = Self::get_constants(byte_stream)?;
-            let functions = Self::get_functions(byte_stream, version)?;
-            let instructions = Self::get_instructions(byte_stream, version)?;
+            let mut constants = Self::get_constants(byte_stream)?;
+            let functions = Self::get_functions(byte_stream, version, settings)?;
+            let instructions = Self::get_instructions::<lua50::Instruction>(byte_stream)?;
+
+            // TODO: confirm
+            // TODO: document
+            is_variadic *= 2;
+
+            // Upcast instructions from Lua 5.0 to Lua 5.1.
+            let (instructions, line_info) = upcast(
+                instructions,
+                line_info,
+                &mut constants,
+                &mut maxstacksize,
+                parameter_count,
+                is_variadic != 0,
+                settings,
+            )?;
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
         };
@@ -317,9 +252,8 @@ impl Function {
             source_file,
             line_defined,
             last_line_defined,
-            nups,
             parameter_count,
-            is_variardic,
+            is_variadic,
             maxstacksize,
             instructions,
             constants,
@@ -330,20 +264,20 @@ impl Function {
         })
     }
 
-    pub(crate) fn write(self, byte_writer: &mut ByteWriter) {
+    pub(crate) fn write(self, byte_writer: &mut ByteWriter) -> Result<(), LunifyError> {
         // function
         byte_writer.string(&self.source_file);
         byte_writer.integer(self.line_defined);
         byte_writer.integer(self.last_line_defined);
-        byte_writer.byte(self.nups);
+        byte_writer.byte(self.upvalues.len() as u8);
         byte_writer.byte(self.parameter_count);
-        byte_writer.byte(self.is_variardic);
+        byte_writer.byte(self.is_variadic);
         byte_writer.byte(self.maxstacksize);
 
         // instructions
         byte_writer.integer(self.instructions.len() as i64);
         for instruction in self.instructions {
-            instruction.write(byte_writer);
+            byte_writer.instruction(instruction);
         }
 
         // constants
@@ -361,7 +295,7 @@ impl Function {
 
                 Constant::Number(number) => {
                     byte_writer.byte(3);
-                    byte_writer.number(number);
+                    byte_writer.number(number)?;
                 }
 
                 Constant::String(string) => {
@@ -374,7 +308,7 @@ impl Function {
         // functions
         byte_writer.integer(self.functions.len() as i64);
         for function in self.functions {
-            function.write(byte_writer);
+            function.write(byte_writer)?;
         }
 
         // line info
@@ -396,5 +330,7 @@ impl Function {
         for upvalue in self.upvalues {
             byte_writer.string(&upvalue);
         }
+
+        Ok(())
     }
 }

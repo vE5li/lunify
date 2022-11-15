@@ -1,22 +1,29 @@
 #![doc = include_str!("../README.md")]
+//#![deny(missing_docs)]
 
 mod error;
 mod format;
 mod function;
+mod instruction;
+mod number;
 mod stream;
+mod version;
 mod writer;
 
 pub use error::LunifyError;
-pub use format::Format;
+pub use format::{BitWidth, Endianness, Format};
 use function::Function;
+use instruction::Settings;
+pub use instruction::{lua50, lua51};
 use stream::ByteStream;
+use version::LuaVersion;
 use writer::ByteWriter;
 
 const LUA_SIGNATURE: &[u8; 4] = b"\x1bLua";
 
 /// Takes Lua bytecode in a supported format and converts it to bytecode in the
 /// specified output [Format]. Returns [LunifyError] on error.
-pub fn unify(input_bytes: &[u8], output_format: Format) -> Result<Vec<u8>, LunifyError> {
+pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> Result<Vec<u8>, LunifyError> {
     let mut byte_stream = ByteStream::new(input_bytes);
 
     let signature = byte_stream.slice(LUA_SIGNATURE.len())?;
@@ -25,14 +32,10 @@ pub fn unify(input_bytes: &[u8], output_format: Format) -> Result<Vec<u8>, Lunif
         return Err(LunifyError::IncorrectSignature);
     }
 
-    let version = byte_stream.byte()?;
+    let version = byte_stream.byte()?.try_into()?;
 
     #[cfg(feature = "debug")]
-    println!("version: {:x}", version);
-
-    if !(0x50..=0x51).contains(&version) {
-        return Err(LunifyError::UnsupportedVersion(version));
-    }
+    println!("version: {}", version);
 
     let input_format = Format::from_byte_stream(&mut byte_stream, version)?;
 
@@ -41,59 +44,59 @@ pub fn unify(input_bytes: &[u8], output_format: Format) -> Result<Vec<u8>, Lunif
         return Ok(input_bytes.to_vec());
     }
 
-    byte_stream.set_format(input_format)?;
+    byte_stream.set_format(input_format);
 
-    let root_function = Function::from_byte_stream(&mut byte_stream, version)?;
+    let root_function = Function::from_byte_stream(&mut byte_stream, version, settings)?;
 
     if !byte_stream.is_empty() {
-        return Err(LunifyError::TooLong);
+        return Err(LunifyError::InputTooLong);
     }
 
-    let mut byte_writer = ByteWriter::new(output_format)?;
+    let mut byte_writer = ByteWriter::new(output_format);
 
     byte_writer.slice(LUA_SIGNATURE);
-    byte_writer.byte(0x51); // version
+    byte_writer.byte(LuaVersion::Lua51.into());
 
     output_format.write(&mut byte_writer);
-    root_function.write(&mut byte_writer);
+    root_function.write(&mut byte_writer)?;
 
     Ok(byte_writer.finalize())
 }
 
 #[cfg(test)]
 mod tests {
-
     use super::{unify, Format, LunifyError};
+    use crate::{BitWidth, Endianness};
+
+    #[cfg(feature = "integration")]
+    fn test_output(bytecode: &[u8]) {
+        use mlua::prelude::*;
+
+        let lua = Lua::new();
+        lua.load(bytecode).exec().unwrap();
+        assert_eq!(lua.globals().get::<_, LuaNumber>("result").unwrap(), 9.0);
+    }
 
     #[test]
     fn _32bit_to_64bit() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
-            size_t_width: 8,
+            size_t_width: BitWidth::Bit64,
             ..Default::default()
         };
-        let _output_bytes = unify(input_bytes, output_format)?;
+        let _output_bytes = unify(input_bytes, output_format, Default::default())?;
 
         Ok(())
     }
 
     #[test]
-    #[allow(unused_variables)]
     fn lua50_to_lua51() -> Result<(), LunifyError> {
-        #[cfg(feature = "integration")]
-        use mlua::prelude::*;
-
         let input_bytes = include_bytes!("../test_files/lua50.luab");
         let output_format = Format::default();
-        let output_bytes = unify(input_bytes, output_format)?;
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
 
         #[cfg(feature = "integration")]
-        {
-            let lua = Lua::new();
-            lua.load(&output_bytes).exec().unwrap();
-            assert_eq!(lua.globals().get::<_, LuaNumber>("bar").unwrap(), 14.0);
-        }
-
+        test_output(&output_bytes);
         Ok(())
     }
 
@@ -101,13 +104,57 @@ mod tests {
     fn matching_format_remains_unchanged() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/32bit.luab");
         let output_format = Format {
-            size_t_width: 4,
+            endianness: Endianness::Little,
+            size_t_width: BitWidth::Bit32,
             ..Default::default()
         };
-        let output_bytes = unify(input_bytes, output_format)?;
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
 
-        assert_eq!(&input_bytes[..], &output_bytes[..]);
+        assert_eq!(&input_bytes[..], &output_bytes);
+        Ok(())
+    }
 
+    #[test]
+    fn little_endian() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/little_endian.luab");
+        let output_format = Format::default();
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&output_bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn big_endian() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/big_endian.luab");
+        let output_format = Format::default();
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&output_bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn large_table() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/large_table.luab");
+        let output_format = Format::default();
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&output_bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn variadic() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/variadic.luab");
+        let output_format = Format::default();
+        let output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&output_bytes);
         Ok(())
     }
 }
