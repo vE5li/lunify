@@ -93,7 +93,7 @@ impl InstructionBuilder {
 
             // TODO: rework this code
             match self.instructions[instruction_index].0.opcode {
-                Opcode::Jump | Opcode::ForLoop | Opcode::ForPrep => {
+                Opcode::Jump | Opcode::ForLoop | Opcode::ForPrep if !self.instructions[instruction_index].0.is_fixed => {
                     let mut bx = self.instructions[instruction_index].0.bx as i64;
                     // TODO: figure this out completely, sometimes the value comes out as 0 even
                     // though it should be one
@@ -129,9 +129,6 @@ impl InstructionBuilder {
 
                     // TODO: Make sure that Bx is still in bounds.
                     self.instructions[instruction_index].0.bx = bx as u64;
-
-                    #[cfg(feature = "debug")]
-                    println!("modified:  {:?}", self.instructions[instruction_index].0);
                 }
                 _ => {}
             }

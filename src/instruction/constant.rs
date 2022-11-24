@@ -7,21 +7,23 @@ pub(super) struct ConstantManager<'a> {
 impl<'a> ConstantManager<'a> {
     pub(super) fn create_unique(&mut self, program_counter: usize) -> u64 {
         let unique_constant = self.constants.len() as u64;
-        let constant_name = format!("__%lunify%__temp{}", program_counter);
+        let constant_name = format!("__%lunify%__temp{}\0", program_counter);
         // TODO: make sure this is actually unique.
         self.constants.push(Constant::String(constant_name));
         unique_constant
     }
 
     pub(super) fn constant_for_str(&mut self, constant_str: &'static str) -> u64 {
+        let zero_terminated = format!("{}\0", constant_str);
+
         // If the constant already exists we don't need to add it again.
-        let matches = |constant: &_| matches!(constant, Constant::String(string) if string == constant_str);
+        let matches = |constant: &_| matches!(constant, Constant::String(string) if string == zero_terminated.as_str());
         if let Some(index) = self.constants.iter().position(matches) {
             return index as u64;
         }
 
         let constant = self.constants.len() as u64;
-        self.constants.push(Constant::String(constant_str.to_owned()));
+        self.constants.push(Constant::String(zero_terminated));
         constant
     }
 }

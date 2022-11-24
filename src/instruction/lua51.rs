@@ -69,6 +69,7 @@ pub(super) struct Instruction {
     pub(super) c: u64,
     pub(super) bx: u64,
     pub(super) is_bx: bool,
+    pub(super) is_fixed: bool,
 }
 
 impl Instruction {
@@ -89,6 +90,7 @@ impl Instruction {
             c,
             bx: 0,
             is_bx: false,
+            is_fixed: false,
         }
     }
 
@@ -100,6 +102,19 @@ impl Instruction {
             c: 0,
             bx,
             is_bx: true,
+            is_fixed: false,
+        }
+    }
+
+    pub(super) fn new_bx_fixed(opcode: Opcode, a: u64, bx: u64) -> Self {
+        Self {
+            opcode,
+            a,
+            b: 0,
+            c: 0,
+            bx,
+            is_bx: true,
+            is_fixed: true,
         }
     }
 

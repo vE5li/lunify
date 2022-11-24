@@ -128,7 +128,7 @@ pub(crate) fn upcast(
                 // value in RA+3.
                 let global_constant = constant_manager.create_unique(builder.get_program_counter());
 
-                // Instruction to save RA + 3.
+                // Instruction to save RA+3.
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 3, global_constant));
 
                 // Original instruction.
@@ -175,11 +175,21 @@ pub(crate) fn upcast(
                 }
             }
             lua50::Opcode::TForPrep => {
+                // Globals for saving RA+1 and RA+2.
+                let ra1_constant = constant_manager.create_unique(builder.get_program_counter());
+                let ra2_constant = constant_manager.create_unique(builder.get_program_counter() + 1);
+
                 let type_global_constant = constant_manager.constant_for_str("type");
                 let table_global_constant = constant_manager.constant_for_str("table");
                 let next_global_constant = constant_manager.constant_for_str("next");
 
-                // TODO: save RA+1 .. RA + 2 ?
+                // Get the program counter before adding any instructions so we can calculate
+                // the final offset of the last instruction.
+                let initial_program_counter = builder.get_program_counter();
+
+                // Instructions to save RA+1 and RA+2.
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 1, ra1_constant));
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 2, ra2_constant));
 
                 // Prepare arguments and call the "type" function on the value in RA.
                 builder.extra_instruction(lua51::Instruction::new_bx(
@@ -193,19 +203,36 @@ pub(crate) fn upcast(
                 // Load the string "table" to compare the result of the previous type to.
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::LoadK, a + 2, table_global_constant));
 
-                // Check if our type is a table, if not jump directly to Bx. This is a small
-                // optimization, instead of jumping to our original instruction we jump straight
-                // to our distination. Luckily it also makes this code simpler.
-                builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Equals, a + 1, a + 2, 0));
-                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::Jump, a, bx));
+                // If it's not a table we want to restore RA+1 and RA+2, so we jump to that
+                // instruction.
+                builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Equals, 0, a + 1, a + 2));
+                // TODO: remove this
+                let signed_offset = 0b11111111111111111;
+                // Because of the way the builder works, the jump destination in Bx would be
+                // moved when re-emitting the instructions. Therefore we use
+                // new_bx_fixed so we land on the correct instruction.
+                builder.extra_instruction(lua51::Instruction::new_bx_fixed(lua51::Opcode::Jump, a, 2 + signed_offset));
 
-                // Move RA+1 to RA like TForPrep does.
-                builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Move, a + 1, a, 0));
+                // Move RA to RA+1 and put the global "next" into RA, exactly like TForPrep
+                // does. Since we restore RA+1 from ra1_constant afterwards, we don't move the
+                // vaule to the stack directly but rather to ra1_constant.
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a, ra1_constant));
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::GetGlobal, a, next_global_constant));
 
+                // Restore RA+1 and RA+2.
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::GetGlobal, a + 1, ra1_constant));
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::GetGlobal, a + 2, ra2_constant));
+
+                // Get the number of extra instructions we inserted.
+                let final_offset = builder.get_program_counter() - initial_program_counter;
+
                 // Original instruction.
+                // Technially this Jump could be removed if it lands on the very next
+                // instruction, which will happen it the next instruction is a
+                // TForLoop. But I think it's better to keep this here for
+                // simplicity.
                 builder.instruction(lua51::Instruction::new_bx(lua51::Opcode::Jump, a, bx));
-                builder.set_final_offset(builder.get_program_counter() - 1, -8);
+                builder.set_final_offset(builder.get_program_counter() - 1, -(final_offset as i64));
             }
             lua50::Opcode::SetList => {
                 let flat_index = bx + 1;
