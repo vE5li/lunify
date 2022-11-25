@@ -169,12 +169,14 @@ impl Instruction {
             instruction |= self.a << 6;
 
             // HACK: Implement correct logic
-            if self.b > 200 {
+            // If ?? and not const
+            if self.b > 200 && (self.b & 1 << 8) == 0 {
                 self.b = (self.b + 6) & 0b111111111;
             }
 
             // HACK: Implement correct logic
-            if self.c > 200 {
+            // If ?? and not const
+            if self.c > 200 && (self.c & 1 << 8) == 0 {
                 self.c = (self.c + 6) & 0b111111111;
             }
 

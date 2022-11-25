@@ -26,4 +26,16 @@ impl<'a> ConstantManager<'a> {
         self.constants.push(Constant::String(zero_terminated));
         constant
     }
+
+    pub(super) fn constant_nil(&mut self) -> u64 {
+        // If the constant already exists we don't need to add it again.
+        let matches = |constant: &_| matches!(constant, Constant::Nil);
+        if let Some(index) = self.constants.iter().position(matches) {
+            return index as u64;
+        }
+
+        let constant = self.constants.len() as u64;
+        self.constants.push(Constant::Nil);
+        constant
+    }
 }

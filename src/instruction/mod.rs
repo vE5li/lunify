@@ -159,19 +159,54 @@ pub(crate) fn upcast(
                 );
             }
             lua50::Opcode::TForLoop => {
-                // Lua 5.0 is able to take additional arguments for TFORLOOP but Lua 5.1 is not,
-                // so we need some mapping here.
+                // The TFORLOOP instruction in Lua 5.0 can move multiple results to the stack
+                // below the callbase, but Lua 5.1 can only move one result and
+                // the subsequent moves are done by MOVE instructions.
 
-                // If the argument count is 0, we can just map directly to Lua 5.1 TFORLOOP.
+                // If the argument count is 1 (argument count = c - 1), we can just map directly
+                // to Lua 5.1 TFORLOOP.
                 if c == 0 {
                     builder.instruction(lua51::Instruction::new(lua51::Opcode::TForLoop, a, b, c + 1));
                 } else {
-                    // Manually call function to get extra params
-                    // Move results to to the ra+*
-                    // If ra is not nil, jump to BX + 1
+                    // In order to mimic the Lua 5.0 TFORLOOP instruction we can't insert MOVE
+                    // instructions after the TFORLOOP jump like Lua 5.1 does, because that won't
+                    // move our results to the stack after the last iteration.
 
-                    //line_info.remove(pc);
-                    panic!("TForLoop");
+                    let variable_count = c + 1;
+                    let call_base = a + variable_count + 2;
+                    let constant_nil = constant_manager.constant_nil();
+
+                    // Make this the "actual" instruction, meaning any jump will land here.
+                    builder.instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base, a, 0));
+                    builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base + 1, a + 1, 0));
+                    builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base + 2, a + 2, 0));
+
+                    // Call to iterator function (e.g. ipairs).
+                    builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Call, call_base, 3, variable_count + 1));
+
+                    // Move the results of our call back to our control variables. After the call,
+                    // our results will be at the call_base and upwards and our control variables
+                    // are located at A+2 and upwards.
+                    for offset in (0..variable_count).rev() {
+                        builder.extra_instruction(lua51::Instruction::new(
+                            lua51::Opcode::Move,
+                            a + offset + 2,
+                            call_base + offset,
+                            0,
+                        ));
+                    }
+
+                    // The control variable for the key/index is located at A+2, so as soon as it
+                    // is nil, we are done with the iteration. If it is not nil we jump back and
+                    // iterate again. It's not obvious from the code here but following this
+                    // instruction will always be a JMP instruction that specifies the destination
+                    // of the jump. That JMP instruction doesn't need any modification here.
+                    builder.extra_instruction(lua51::Instruction::new(
+                        lua51::Opcode::Equals,
+                        0,
+                        a + 2,
+                        constant_nil | (1 << (8)),
+                    ));
                 }
             }
             lua50::Opcode::TForPrep => {
