@@ -70,6 +70,7 @@ pub(super) struct Instruction {
     pub(super) bx: u64,
     pub(super) is_bx: bool,
     pub(super) is_fixed: bool,
+    pub(super) offset: i64,
 }
 
 impl Instruction {
@@ -91,6 +92,7 @@ impl Instruction {
             bx: 0,
             is_bx: false,
             is_fixed: false,
+            offset: 0,
         }
     }
 
@@ -103,6 +105,7 @@ impl Instruction {
             bx,
             is_bx: true,
             is_fixed: false,
+            offset: 0,
         }
     }
 
@@ -115,6 +118,20 @@ impl Instruction {
             bx,
             is_bx: true,
             is_fixed: true,
+            offset: 0,
+        }
+    }
+
+    pub(super) fn new_bx_offset(opcode: Opcode, a: u64, bx: u64, offset: i64) -> Self {
+        Self {
+            opcode,
+            a,
+            b: 0,
+            c: 0,
+            bx,
+            is_bx: true,
+            is_fixed: false,
+            offset,
         }
     }
 

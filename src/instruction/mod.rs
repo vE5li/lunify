@@ -129,22 +129,18 @@ pub(crate) fn upcast(
                 let global_constant = constant_manager.create_unique(builder.get_program_counter());
 
                 // Instruction to save RA+3.
-                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 3, global_constant));
+                builder.instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 3, global_constant));
 
-                // Original instruction.
-                builder.instruction(lua51::Instruction::new_bx(lua51::Opcode::ForLoop, a, bx));
-                // Add a final offset so that any instruction that lands on this FORLOOP
-                // will land on SETGLOBAL instead.
-                builder.set_final_offset(builder.get_program_counter() - 1, -1);
+                // Original instruction, but since we will insert another instruction before the
+                // destination of our jump, we also pass it an offset that will be applied after
+                // adjusting the jump position.
+                builder.extra_instruction(lua51::Instruction::new_bx_offset(lua51::Opcode::ForLoop, a, bx, -1));
 
                 // Get the *adjusted* position of the instruction we want to
                 // jump to. It is very important that we take the adjusted position because
                 // we might have added or remove instructions inside the for loop, which would
                 // make the old Bx invalid.
                 let position = builder.adjusted_jump_destination(bx) + 1;
-                // Add a final offset to the target of our jump, so that we get the global
-                // before anything else.
-                builder.set_final_offset(position, -1);
 
                 // Instruction to restore RA+3 if we take the jump.
                 // This instruction is actually inserted *before* the SETGLOBAL instruction, but
@@ -176,7 +172,7 @@ pub(crate) fn upcast(
                     let call_base = a + variable_count + 2;
                     let constant_nil = constant_manager.constant_nil();
 
-                    // Make this the "actual" instruction, meaning any jump will land here.
+                    // Move the iterator function, the table and the index to our call base.
                     builder.instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base, a, 0));
                     builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base + 1, a + 1, 0));
                     builder.extra_instruction(lua51::Instruction::new(lua51::Opcode::Move, call_base + 2, a + 2, 0));
@@ -218,12 +214,8 @@ pub(crate) fn upcast(
                 let table_global_constant = constant_manager.constant_for_str("table");
                 let next_global_constant = constant_manager.constant_for_str("next");
 
-                // Get the program counter before adding any instructions so we can calculate
-                // the final offset of the last instruction.
-                let initial_program_counter = builder.get_program_counter();
-
                 // Instructions to save RA+1 and RA+2.
-                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 1, ra1_constant));
+                builder.instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 1, ra1_constant));
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::SetGlobal, a + 2, ra2_constant));
 
                 // Prepare arguments and call the "type" function on the value in RA.
@@ -258,16 +250,12 @@ pub(crate) fn upcast(
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::GetGlobal, a + 1, ra1_constant));
                 builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::GetGlobal, a + 2, ra2_constant));
 
-                // Get the number of extra instructions we inserted.
-                let final_offset = builder.get_program_counter() - initial_program_counter;
-
                 // Original instruction.
                 // Technially this Jump could be removed if it lands on the very next
                 // instruction, which will happen it the next instruction is a
                 // TForLoop. But I think it's better to keep this here for
                 // simplicity.
-                builder.instruction(lua51::Instruction::new_bx(lua51::Opcode::Jump, a, bx));
-                builder.set_final_offset(builder.get_program_counter() - 1, -(final_offset as i64));
+                builder.extra_instruction(lua51::Instruction::new_bx(lua51::Opcode::Jump, a, bx));
             }
             lua50::Opcode::SetList => {
                 let flat_index = bx + 1;

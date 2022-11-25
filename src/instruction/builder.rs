@@ -4,7 +4,7 @@ use crate::LunifyError;
 
 #[derive(Default)]
 pub(super) struct InstructionBuilder {
-    instructions: Vec<(Instruction, i64, i64)>,
+    instructions: Vec<(Instruction, i64)>,
     line_info: Vec<i64>,
     line_number: i64,
 }
@@ -15,18 +15,18 @@ impl InstructionBuilder {
     }
 
     pub(super) fn instruction(&mut self, instruction: Instruction) {
-        self.instructions.push((instruction, 0, 0));
+        self.instructions.push((instruction, 0));
         self.line_info.push(self.line_number);
     }
 
     pub(super) fn extra_instruction(&mut self, instruction: Instruction) {
-        self.instructions.push((instruction, 1, 0));
+        self.instructions.push((instruction, 1));
         self.line_info.push(self.line_number);
     }
 
     pub(super) fn insert_extra_instruction(&mut self, index: usize, instruction: Instruction) {
         let line_number = self.line_info[index];
-        self.instructions.insert(index, (instruction, 1, 0));
+        self.instructions.insert(index, (instruction, 1));
         self.line_info.insert(index, line_number);
     }
 
@@ -42,10 +42,6 @@ impl InstructionBuilder {
 
     pub(super) fn get_program_counter(&self) -> usize {
         self.instructions.len()
-    }
-
-    pub(super) fn set_final_offset(&mut self, index: usize, offset: i64) {
-        self.instructions[index].2 = offset;
     }
 
     pub(super) fn adjusted_jump_destination(&self, bx: u64) -> usize {
@@ -64,7 +60,7 @@ impl InstructionBuilder {
                 true => instruction_index + offset,
                 false => instruction_index - offset,
             };
-            let (_, jump_offset, _) = self.instructions[index];
+            let (_, jump_offset) = self.instructions[index];
 
             direction += jump_offset * sign;
             steps += jump_offset - 1;
@@ -111,21 +107,14 @@ impl InstructionBuilder {
                             true => instruction_index + offset,
                             false => instruction_index - offset,
                         };
-                        let (_, jump_offset, final_offset) = self.instructions[index];
+                        let (_, jump_offset) = self.instructions[index];
 
                         bx += jump_offset * sign;
                         steps += jump_offset - 1;
                         offset += 1;
-
-                        if steps == 0 {
-                            // This final offset is needed because by design,ny inserted
-                            // instructions will not change the instruction a jump lands on, only
-                            // where that instruction in inside the binary. But sometimes we need
-                            // to change the instruction a jump lands on, like when trying to save
-                            // RA+3 before executing the FORLOOP instruction.
-                            bx += final_offset;
-                        }
                     }
+
+                    bx += self.instructions[instruction_index].0.offset;
 
                     // TODO: Make sure that Bx is still in bounds.
                     self.instructions[instruction_index].0.bx = bx as u64;
@@ -138,7 +127,7 @@ impl InstructionBuilder {
                 let instruction = self.instructions[instruction_index];
                 println!();
                 println!("[{}] {:?}", instruction_index, instruction.0);
-                println!(" -> {:?} (final: {})", instruction.1, instruction.2);
+                println!(" -> {:?}", instruction.1);
             }
         }
 
@@ -179,7 +168,7 @@ mod tests {
 
         builder.instruction(instruction);
 
-        assert_eq!(&builder.instructions[..], &[(instruction, 0, 0)]);
+        assert_eq!(&builder.instructions[..], &[(instruction, 0)]);
         assert_eq!(&builder.line_info[..], &[0]);
     }
 
@@ -190,7 +179,7 @@ mod tests {
 
         builder.extra_instruction(instruction);
 
-        assert_eq!(&builder.instructions[..], &[(instruction, 1, 0)]);
+        assert_eq!(&builder.instructions[..], &[(instruction, 1)]);
         assert_eq!(&builder.line_info[..], &[0]);
     }
 
@@ -205,7 +194,7 @@ mod tests {
         builder.instruction(instruction);
         builder.insert_extra_instruction(1, inserted_instruction);
 
-        let expected = [(instruction, 0, 0), (inserted_instruction, 1, 0), (instruction, 0, 0)];
+        let expected = [(instruction, 0), (inserted_instruction, 1), (instruction, 0)];
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 9, 9]);
     }
@@ -221,7 +210,7 @@ mod tests {
         builder.instruction(instruction);
         builder.remove_instruction(1);
 
-        let expected = [(instruction, 0, 0), (instruction, -1, 0)];
+        let expected = [(instruction, 0), (instruction, -1)];
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 0]);
     }
@@ -237,7 +226,7 @@ mod tests {
         builder.instruction(instruction);
         builder.remove_instruction(1);
 
-        let expected = [(instruction, 0, 0), (instruction, 0, 0)];
+        let expected = [(instruction, 0), (instruction, 0)];
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 0]);
     }
