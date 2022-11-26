@@ -5,6 +5,7 @@ use crate::version::LuaVersion;
 use crate::writer::ByteWriter;
 use crate::LunifyError;
 
+#[derive(Debug)]
 pub(crate) enum Constant {
     Nil,
     Boolean(u8),
@@ -43,10 +44,6 @@ impl Function {
 
         for _index in 0..instruction_count as usize {
             let instruction = T::from_byte_stream(byte_stream)?;
-
-            #[cfg(feature = "debug")]
-            println!("instruction[{}]: {:x?}", _index, instruction.to_u64());
-
             instructions.push(instruction);
         }
 
@@ -244,6 +241,8 @@ impl Function {
                 is_variadic != 0,
                 settings,
             )?;
+
+            let instructions = instructions.into_iter().map(|instruction| instruction.to_u64()).collect();
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
         };

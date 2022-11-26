@@ -1,10 +1,38 @@
 use super::Settings;
-use crate::lua51::{Instruction, Opcode};
+use crate::lua51::Instruction;
 use crate::LunifyError;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Metadata {
+    instruction: Instruction,
+    line_weight: i64,
+    final_offset: i64,
+    is_fixed: bool,
+}
+
+impl Metadata {
+    pub fn new(instruction: Instruction) -> Self {
+        Self {
+            instruction,
+            line_weight: 0,
+            final_offset: 0,
+            is_fixed: false,
+        }
+    }
+
+    pub fn new_extra(instruction: Instruction) -> Self {
+        Self {
+            instruction,
+            line_weight: 1,
+            final_offset: 0,
+            is_fixed: false,
+        }
+    }
+}
 
 #[derive(Default)]
 pub(super) struct InstructionBuilder {
-    instructions: Vec<(Instruction, i64)>,
+    instructions: Vec<Metadata>,
     line_info: Vec<i64>,
     line_number: i64,
 }
@@ -15,63 +43,72 @@ impl InstructionBuilder {
     }
 
     pub(super) fn instruction(&mut self, instruction: Instruction) {
-        self.instructions.push((instruction, 0));
+        self.instructions.push(Metadata::new(instruction));
         self.line_info.push(self.line_number);
     }
 
     pub(super) fn extra_instruction(&mut self, instruction: Instruction) {
-        self.instructions.push((instruction, 1));
+        self.instructions.push(Metadata::new_extra(instruction));
         self.line_info.push(self.line_number);
     }
 
     pub(super) fn insert_extra_instruction(&mut self, index: usize, instruction: Instruction) {
         let line_number = self.line_info[index];
-        self.instructions.insert(index, (instruction, 1));
+        self.instructions.insert(index, Metadata::new_extra(instruction));
         self.line_info.insert(index, line_number);
     }
 
     pub(super) fn remove_instruction(&mut self, index: usize) {
         let removed = self.instructions.remove(index);
         self.line_info.remove(index);
-        self.instructions[index].1 += removed.1 - 1;
+        self.instructions[index].line_weight += removed.line_weight - 1;
+    }
+
+    pub(super) fn last_instruction_fixed(&mut self) {
+        self.instructions.last_mut().unwrap().is_fixed = true;
+    }
+
+    pub(super) fn last_instruction_offset(&mut self, final_offset: i64) {
+        self.instructions.last_mut().unwrap().final_offset = final_offset;
     }
 
     pub(super) fn get_instruction(&mut self, index: usize) -> &mut Instruction {
-        &mut self.instructions[index].0
+        &mut self.instructions[index].instruction
     }
 
     pub(super) fn get_program_counter(&self) -> usize {
         self.instructions.len()
     }
 
-    pub(super) fn adjusted_jump_destination(&self, bx: u64) -> usize {
-        // TODO: rework to internally share code with the finalize function
+    pub(super) fn adjusted_jump_destination(&self, mut bx: i64) -> usize {
         let instruction_index = self.get_program_counter() - 1;
-        let mut direction = bx as i64 - 0b11111111111111111;
-        let sign = direction.signum();
 
-        let (mut steps, mut offset) = match direction.is_positive() {
-            true => (direction + 1, 1),
-            false => (direction.abs(), 0),
+        let (mut steps, mut offset) = match bx.is_positive() {
+            true => (bx + 1, 1),
+            false => (bx.abs(), 0),
         };
 
         while steps != 0 {
-            let index = match direction.is_positive() {
+            let index = match bx.is_positive() {
                 true => instruction_index + offset,
                 false => instruction_index - offset,
             };
-            let (_, jump_offset) = self.instructions[index];
+            let instruction = &self.instructions[index];
 
-            direction += jump_offset * sign;
-            steps += jump_offset - 1;
+            bx += instruction.line_weight * bx.signum();
+            steps += instruction.line_weight - 1;
             offset += 1;
         }
 
-        ((instruction_index as i64) + direction) as usize
+        // TODO: figure out what to to if final_offset is != 0
+
+        ((instruction_index as i64) + bx) as usize
     }
 
-    pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: Settings) -> Result<(Vec<u64>, Vec<i64>), LunifyError> {
-        for instruction_index in 0..self.instructions.len() {
+    pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: Settings) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
+        let cloned = self.instructions.clone();
+
+        for (instruction_index, instruction) in self.instructions.iter_mut().enumerate() {
             // The stack positions might have changed significantly, so go over every
             // instruction and make sure that the maxstacksize is big enough. If the stack
             // had to be popped out too much in the conversion, we return an error.
@@ -79,7 +116,7 @@ impl InstructionBuilder {
             // put there by anther instruction, meaning if we make space for the
             // instructions that push the values onto the stack, the stack will never
             // overflow.
-            if let Some(destination) = self.instructions[instruction_index].0.stack_destination() {
+            if let Some(destination) = instruction.instruction.stack_destination() {
                 let new_stack_size = destination.end + 1;
                 match new_stack_size <= settings.lua51.stack_limit {
                     true => *maxstacksize = (*maxstacksize).max(new_stack_size as u8),
@@ -87,51 +124,47 @@ impl InstructionBuilder {
                 }
             }
 
-            // TODO: rework this code
-            match self.instructions[instruction_index].0.opcode {
-                Opcode::Jump | Opcode::ForLoop | Opcode::ForPrep if !self.instructions[instruction_index].0.is_fixed => {
-                    let mut bx = self.instructions[instruction_index].0.bx as i64;
-                    // TODO: figure this out completely, sometimes the value comes out as 0 even
-                    // though it should be one
-                    // Maybe just add one to it?
-                    let direction = bx - 0b11111111111111111;
-                    let sign = direction.signum();
+            let is_fixed = instruction.is_fixed;
+            let final_offset = instruction.final_offset;
 
-                    let (mut steps, mut offset) = match direction.is_positive() {
-                        true => (direction + 1, 1),
-                        false => (direction.abs(), 0),
+            // TODO: rework this code
+            match &mut instruction.instruction {
+                Instruction::Jump { mode, .. } | Instruction::ForLoop { mode, .. } | Instruction::ForPrep { mode, .. } if !is_fixed => {
+                    let mut bx = mode.0;
+
+                    let (mut steps, mut offset) = match bx.is_positive() {
+                        true => (bx + 1, 1),
+                        false => (bx.abs(), 0),
                     };
 
                     while steps != 0 {
-                        let index = match direction.is_positive() {
+                        let index = match bx.is_positive() {
                             true => instruction_index + offset,
                             false => instruction_index - offset,
                         };
-                        let (_, jump_offset) = self.instructions[index];
+                        let instruction = cloned[index];
 
-                        bx += jump_offset * sign;
-                        steps += jump_offset - 1;
+                        bx += instruction.line_weight * bx.signum();
+                        steps += instruction.line_weight - 1;
                         offset += 1;
                     }
 
-                    bx += self.instructions[instruction_index].0.offset;
-
+                    bx += final_offset;
                     // TODO: Make sure that Bx is still in bounds.
-                    self.instructions[instruction_index].0.bx = bx as u64;
+                    mode.0 = bx;
                 }
                 _ => {}
             }
 
             #[cfg(feature = "debug")]
             {
-                let instruction = self.instructions[instruction_index];
                 println!();
-                println!("[{}] {:?}", instruction_index, instruction.0);
-                println!(" -> {:?}", instruction.1);
+                println!("[{}] {:?}", instruction_index, instruction.instruction);
+                println!(" -> {:?}", instruction.line_weight);
             }
         }
 
-        let instructions = self.instructions.into_iter().map(|instruction| instruction.0.to_u64()).collect();
+        let instructions = self.instructions.into_iter().map(|instruction| instruction.instruction).collect();
         Ok((instructions, self.line_info))
     }
 }
@@ -139,7 +172,37 @@ impl InstructionBuilder {
 #[cfg(test)]
 mod tests {
     use super::InstructionBuilder;
+    use crate::instruction::builder::Metadata;
+    use crate::instruction::Bx;
     use crate::{lua51, LunifyError};
+
+    #[test]
+    fn metadata_new() {
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
+        let metadata = Metadata::new(instruction);
+        let expected = Metadata {
+            instruction,
+            line_weight: 0,
+            final_offset: 0,
+            is_fixed: false,
+        };
+
+        assert_eq!(metadata, expected);
+    }
+
+    #[test]
+    fn metadata_new_extra() {
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
+        let metadata = Metadata::new_extra(instruction);
+        let expected = Metadata {
+            instruction,
+            line_weight: 1,
+            final_offset: 0,
+            is_fixed: false,
+        };
+
+        assert_eq!(metadata, expected);
+    }
 
     #[test]
     fn set_line_number() {
@@ -153,7 +216,7 @@ mod tests {
     #[test]
     fn line_number_applies() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.set_line_number(9);
         builder.instruction(instruction);
@@ -164,37 +227,42 @@ mod tests {
     #[test]
     fn instruction() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
 
-        assert_eq!(&builder.instructions[..], &[(instruction, 0)]);
+        assert_eq!(&builder.instructions[..], &[Metadata::new(instruction)]);
         assert_eq!(&builder.line_info[..], &[0]);
     }
 
     #[test]
     fn extra_instruction() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.extra_instruction(instruction);
 
-        assert_eq!(&builder.instructions[..], &[(instruction, 1)]);
+        assert_eq!(&builder.instructions[..], &[Metadata::new_extra(instruction)]);
         assert_eq!(&builder.line_info[..], &[0]);
     }
 
     #[test]
     fn insert_extra_instruction() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
-        let inserted_instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 10);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
+        let extra_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
         builder.instruction(instruction);
         builder.set_line_number(9);
         builder.instruction(instruction);
-        builder.insert_extra_instruction(1, inserted_instruction);
+        builder.insert_extra_instruction(1, extra_instruction);
 
-        let expected = [(instruction, 0), (inserted_instruction, 1), (instruction, 0)];
+        let expected = [
+            Metadata::new(instruction),
+            Metadata::new_extra(extra_instruction),
+            Metadata::new(instruction),
+        ];
+
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 9, 9]);
     }
@@ -202,15 +270,19 @@ mod tests {
     #[test]
     fn remove_instruction() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
-        let removed_instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 10);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
+        let removed_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
         builder.instruction(instruction);
         builder.instruction(removed_instruction);
         builder.instruction(instruction);
         builder.remove_instruction(1);
 
-        let expected = [(instruction, 0), (instruction, -1)];
+        let expected = [Metadata::new(instruction), Metadata {
+            line_weight: -1,
+            ..Metadata::new(instruction)
+        }];
+
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 0]);
     }
@@ -218,15 +290,15 @@ mod tests {
     #[test]
     fn remove_extra_instruction() {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 1);
-        let removed_instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 0, 10);
+        let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
+        let removed_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
         builder.instruction(instruction);
         builder.extra_instruction(removed_instruction);
         builder.instruction(instruction);
         builder.remove_instruction(1);
 
-        let expected = [(instruction, 0), (instruction, 0)];
+        let expected = [Metadata::new(instruction), Metadata::new(instruction)];
         assert_eq!(&builder.instructions[..], &expected);
         assert_eq!(&builder.line_info[..], &[0, 0]);
     }
@@ -234,7 +306,7 @@ mod tests {
     #[test]
     fn finalize_expands_stack() -> Result<(), LunifyError> {
         let mut builder = InstructionBuilder::default();
-        let instruction = lua51::Instruction::new_bx(lua51::Opcode::LoadK, 10, 1);
+        let instruction = lua51::Instruction::LoadK { a: 10, mode: Bx(1) };
         builder.instruction(instruction);
 
         let mut maxstacksize = 0;

@@ -3,6 +3,8 @@ use std::ops::Range;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use super::operant::{Bx, SignedBx, BC};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
@@ -19,191 +21,169 @@ impl Default for Settings {
     }
 }
 
-opcodes! {
-    Move,
-    LoadK,
-    LoadBool,
-    LoadNil,
-    GetUpValue,
-    GetGlobal,
-    GetTable,
-    SetGlobal,
-    SetUpValue,
-    SetTable,
-    NewTable,
-    _Self,
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-    Power,
-    Unary,
-    Not,
-    Length,
-    Concatinate,
-    Jump,
-    Equals,
-    LessThan,
-    LessEquals,
-    Test,
-    TestSet,
-    Call,
-    TailCall,
-    Return,
-    ForLoop,
-    ForPrep,
-    TForLoop,
-    SetList,
-    Close,
-    Closure,
-    VarArg,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[cfg_attr(test, derive(PartialEq, Eq))]
-pub(super) struct Instruction {
-    pub(super) opcode: Opcode,
-    pub(super) a: u64,
-    pub(super) b: u64,
-    pub(super) c: u64,
-    pub(super) bx: u64,
-    pub(super) is_bx: bool,
-    pub(super) is_fixed: bool,
-    pub(super) offset: i64,
+lua_instructions! {
+    Move(BC),
+    LoadK(Bx),
+    LoadBool(BC),
+    LoadNil(BC),
+    GetUpValue(BC),
+    GetGlobal(Bx),
+    GetTable(BC),
+    SetGlobal(Bx),
+    SetUpValue(BC),
+    SetTable(BC),
+    NewTable(BC),
+    _Self(BC),
+    Add(BC),
+    Subtract(BC),
+    Multiply(BC),
+    Divide(BC),
+    Modulo(BC),
+    Power(BC),
+    Unary(BC),
+    Not(BC),
+    Length(BC),
+    Concatinate(BC),
+    Jump(SignedBx),
+    Equals(BC),
+    LessThan(BC),
+    LessEquals(BC),
+    Test(BC),
+    TestSet(BC),
+    Call(BC),
+    TailCall(BC),
+    Return(BC),
+    ForLoop(SignedBx),
+    ForPrep(SignedBx),
+    TForLoop(BC),
+    SetList(BC),
+    Close(BC),
+    Closure(Bx),
+    VarArg(BC),
 }
 
 impl Instruction {
-    pub(super) fn new(opcode: Opcode, a: u64, b: u64, c: u64) -> Self {
-        #[cfg(feature = "debug")]
-        {
-            println!("=== generated ===");
-            println!("Opcode {:?}", opcode);
-            println!("A {}", a);
-            println!("B {}", b);
-            println!("C {}", c);
-        }
-
-        Self {
-            opcode,
-            a,
-            b,
-            c,
-            bx: 0,
-            is_bx: false,
-            is_fixed: false,
-            offset: 0,
-        }
-    }
-
-    pub(super) fn new_bx(opcode: Opcode, a: u64, bx: u64) -> Self {
-        Self {
-            opcode,
-            a,
-            b: 0,
-            c: 0,
-            bx,
-            is_bx: true,
-            is_fixed: false,
-            offset: 0,
-        }
-    }
-
-    pub(super) fn new_bx_fixed(opcode: Opcode, a: u64, bx: u64) -> Self {
-        Self {
-            opcode,
-            a,
-            b: 0,
-            c: 0,
-            bx,
-            is_bx: true,
-            is_fixed: true,
-            offset: 0,
-        }
-    }
-
-    pub(super) fn new_bx_offset(opcode: Opcode, a: u64, bx: u64, offset: i64) -> Self {
-        Self {
-            opcode,
-            a,
-            b: 0,
-            c: 0,
-            bx,
-            is_bx: true,
-            is_fixed: false,
-            offset,
-        }
-    }
-
     pub(super) fn stack_destination(&self) -> Option<Range<u64>> {
-        match self.opcode {
-            Opcode::SetGlobal => None,
-            Opcode::SetUpValue => None,
-            Opcode::_Self => Some(self.a..self.a + 1),
-            Opcode::Jump => None,
-            Opcode::Equals => None,
-            Opcode::LessThan => None,
-            Opcode::LessEquals => None,
-            Opcode::Test => None,
-            Opcode::Call => Some(self.a..self.a + self.c - 1),
-            Opcode::TailCall => None,
-            Opcode::Return => None,
-            Opcode::ForLoop => Some(self.a..self.a + 3),
-            Opcode::ForPrep => Some(self.a..self.a + 2),
-            Opcode::TForLoop => Some(self.a..self.a + 2 + self.c),
-            Opcode::Close => None,
-            Opcode::VarArg => Some(self.a..self.a.max((self.a + self.b).saturating_sub(1))),
-            _ => Some(self.a..self.a),
+        match *self {
+            Instruction::Move { a, .. } => Some(a..a),
+            Instruction::LoadK { a, .. } => Some(a..a),
+            Instruction::LoadBool { a, .. } => Some(a..a),
+            Instruction::LoadNil { a, mode: BC(b, _) } => Some(a..b),
+            Instruction::GetUpValue { a, .. } => Some(a..a),
+            Instruction::GetGlobal { a, .. } => Some(a..a),
+            Instruction::GetTable { a, .. } => Some(a..a),
+            Instruction::SetGlobal { .. } => None,
+            Instruction::SetUpValue { .. } => None,
+            Instruction::SetTable { a, .. } => Some(a..a),
+            Instruction::NewTable { a, .. } => Some(a..a),
+            Instruction::_Self { a, .. } => Some(a..a + 1),
+            Instruction::Add { a, .. } => Some(a..a),
+            Instruction::Subtract { a, .. } => Some(a..a),
+            Instruction::Multiply { a, .. } => Some(a..a),
+            Instruction::Divide { a, .. } => Some(a..a),
+            Instruction::Modulo { a, .. } => Some(a..a),
+            Instruction::Power { a, .. } => Some(a..a),
+            Instruction::Unary { a, .. } => Some(a..a),
+            Instruction::Not { a, .. } => Some(a..a),
+            Instruction::Length { a, .. } => Some(a..a),
+            Instruction::Concatinate { a, .. } => Some(a..a),
+            Instruction::Jump { .. } => None,
+            Instruction::Equals { .. } => None,
+            Instruction::LessThan { .. } => None,
+            Instruction::LessEquals { .. } => None,
+            Instruction::Test { .. } => None,
+            Instruction::TestSet { a, .. } => Some(a..a),
+            Instruction::Call { a, mode: BC(_, c) } => Some(a..a + c - 1),
+            Instruction::TailCall { .. } => None,
+            Instruction::Return { .. } => None,
+            Instruction::ForLoop { a, .. } => Some(a..a + 3),
+            Instruction::ForPrep { a, .. } => Some(a..a + 2),
+            Instruction::TForLoop { a, mode: BC(_, c) } => Some(a..a + 2 + c),
+            Instruction::SetList { a, .. } => Some(a..a),
+            Instruction::Close { .. } => None,
+            Instruction::Closure { a, .. } => Some(a..a),
+            Instruction::VarArg { a, mode: BC(b, _) } => Some(a..a.max((a + b).saturating_sub(1))),
         }
     }
 
-    pub(super) fn move_stack_accesses(&mut self, offset: i64) {
-        let offset = |position| (position as i64 + offset) as u64;
-
-        // FIX: correct this list
-        match self.opcode {
-            Opcode::Jump => {}
-            Opcode::Equals => {}
-            Opcode::LessThan => {}
-            Opcode::LessEquals => {}
-            _ => self.a = offset(self.a),
-        }
-    }
-
-    pub(super) fn to_u64(mut self) -> u64 {
-        if self.is_bx {
-            let mut instruction = self.opcode as u64;
-
-            instruction |= self.a << 6;
-            instruction |= self.bx << 14;
-
-            //#[cfg(feature = "debug")]
-            //println!("{:0>32b}\n", instruction);
-
-            instruction
-        } else {
-            let mut instruction = self.opcode as u64;
-            instruction |= self.a << 6;
-
-            // HACK: Implement correct logic
-            // If ?? and not const
-            if self.b > 200 && (self.b & 1 << 8) == 0 {
-                self.b = (self.b + 6) & 0b111111111;
+    pub(super) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64) {
+        let offset = |position: &mut u64| {
+            let value = *position;
+            if value >= stack_start && value & super::operant::LUA_CONST_BIT == 0 {
+                *position = (value as i64 + offset) as u64;
             }
+        };
 
-            // HACK: Implement correct logic
-            // If ?? and not const
-            if self.c > 200 && (self.c & 1 << 8) == 0 {
-                self.c = (self.c + 6) & 0b111111111;
+        match self {
+            Instruction::Move { a, mode: BC(b, _) } => {
+                offset(a);
+                offset(b);
             }
-
-            instruction |= self.c << 14;
-            instruction |= self.b << 23;
-
-            //#[cfg(feature = "debug")]
-            //println!("{:0>32b}\n", instruction);
-
-            instruction
+            Instruction::LoadK { a, .. } => offset(a),
+            Instruction::LoadBool { a, .. } => offset(a),
+            Instruction::LoadNil { a, mode: BC(b, _) } => {
+                offset(a);
+                offset(b);
+            }
+            Instruction::GetUpValue { a, .. } => offset(a),
+            Instruction::GetGlobal { a, .. } => offset(a),
+            Instruction::GetTable { a, mode: BC(b, c) } => {
+                offset(a);
+                offset(b);
+                offset(c);
+            }
+            Instruction::SetGlobal { a, .. } => offset(a),
+            Instruction::SetUpValue { a, .. } => offset(a),
+            Instruction::SetTable { a, mode: BC(b, c) } => {
+                offset(a);
+                offset(b);
+                offset(c);
+            }
+            Instruction::NewTable { a, .. } => offset(a),
+            Instruction::_Self { a, mode: BC(b, c) } => {
+                offset(a);
+                offset(b);
+                offset(c);
+            }
+            Instruction::Add { a, mode: BC(b, c) }
+            | Instruction::Subtract { a, mode: BC(b, c) }
+            | Instruction::Multiply { a, mode: BC(b, c) }
+            | Instruction::Divide { a, mode: BC(b, c) }
+            | Instruction::Modulo { a, mode: BC(b, c) }
+            | Instruction::Power { a, mode: BC(b, c) } => {
+                offset(a);
+                offset(b);
+                offset(c);
+            }
+            Instruction::Unary { a, mode: BC(b, _) } | Instruction::Not { a, mode: BC(b, _) } | Instruction::Length { a, mode: BC(b, _) } => {
+                offset(a);
+                offset(b);
+            }
+            Instruction::Concatinate { a, mode: BC(b, c) } => {
+                offset(a);
+                offset(b);
+                offset(c);
+            }
+            Instruction::Jump { .. } => {}
+            Instruction::Equals { mode: BC(b, c), .. } | Instruction::LessThan { mode: BC(b, c), .. } | Instruction::LessEquals { mode: BC(b, c), .. } => {
+                offset(b);
+                offset(c);
+            }
+            Instruction::Test { a, .. } => offset(a),
+            Instruction::TestSet { a, mode: BC(b, _) } => {
+                offset(a);
+                offset(b);
+            }
+            Instruction::Call { a, .. } => offset(a),
+            Instruction::TailCall { a, .. } => offset(a),
+            Instruction::Return { a, .. } => offset(a),
+            Instruction::ForLoop { a, .. } => offset(a),
+            Instruction::ForPrep { a, .. } => offset(a),
+            Instruction::TForLoop { a, .. } => offset(a),
+            Instruction::SetList { a, .. } => offset(a),
+            Instruction::Close { a, .. } => offset(a),
+            Instruction::Closure { a, .. } => offset(a),
+            Instruction::VarArg { a, .. } => offset(a),
         }
     }
 }
