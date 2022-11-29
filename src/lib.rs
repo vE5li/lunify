@@ -13,18 +13,17 @@ pub use format::{BitWidth, Endianness, Format};
 use function::Function;
 pub use function::{lua50, lua51, Settings};
 
-use crate::{serialization::{ByteStream, ByteWriter}, format::LuaVersion};
-
-const LUA_SIGNATURE: &[u8; 4] = b"\x1bLua";
+use crate::format::LuaVersion;
+use crate::serialization::{ByteStream, ByteWriter};
 
 /// Takes Lua bytecode in a supported format and converts it to bytecode in the
 /// specified output [Format]. Returns [LunifyError] on error.
 pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> Result<Vec<u8>, LunifyError> {
     let mut byte_stream = ByteStream::new(input_bytes);
 
-    let signature = byte_stream.slice(LUA_SIGNATURE.len())?;
-
-    if signature != LUA_SIGNATURE {
+    if !byte_stream.remove_signature(settings.lua50.binary_signature)
+        && !byte_stream.remove_signature(settings.lua51.input_binary_signature)
+    {
         return Err(LunifyError::IncorrectSignature);
     }
 
@@ -35,7 +34,7 @@ pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> R
 
     let input_format = Format::from_byte_stream(&mut byte_stream, version)?;
 
-    // if the input is already in the correct format, return it as is
+    // If the input is already in the correct format, return it as is.
     if input_format == output_format && !cfg!(test) {
         return Ok(input_bytes.to_vec());
     }
@@ -50,9 +49,8 @@ pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> R
 
     let mut byte_writer = ByteWriter::new(output_format);
 
-    byte_writer.slice(LUA_SIGNATURE);
+    byte_writer.slice(settings.lua51.output_binary_signature.as_bytes());
     byte_writer.byte(LuaVersion::Lua51.into());
-
     output_format.write(&mut byte_writer);
     root_function.write(&mut byte_writer)?;
 
@@ -62,7 +60,7 @@ pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> R
 #[cfg(test)]
 mod tests {
     use super::{unify, Format, LunifyError};
-    use crate::{BitWidth, Endianness};
+    use crate::{lua51, BitWidth, Endianness, Settings};
 
     #[cfg(feature = "integration")]
     fn test_output(bytecode: &[u8]) {
@@ -148,6 +146,26 @@ mod tests {
         let input_bytes = include_bytes!("../test_files/variadic.luab");
         let output_format = Format::default();
         let _output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&_output_bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn custom_signature() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/custom_signature.luab").to_vec();
+        let output_format = Format::default();
+
+        let settings = Settings {
+            lua51: lua51::Settings {
+                input_binary_signature: "\x1bLul",
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let _output_bytes = unify(&input_bytes, output_format, settings)?;
 
         #[cfg(feature = "integration")]
         test_output(&_output_bytes);

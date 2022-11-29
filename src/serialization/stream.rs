@@ -17,6 +17,25 @@ impl<'a> ByteStream<'a> {
         Self { data, offset, format }
     }
 
+    pub fn remove_signature(&mut self, signature: &str) -> bool {
+        assert_eq!(
+            self.offset, 0,
+            "remove_signature can only be called at the beginning of the byte stream"
+        );
+
+        if self.data.len() <= signature.len() {
+            return false;
+        }
+
+        let signature_found = &self.data[..signature.len()] == signature.as_bytes();
+
+        if signature_found {
+            self.offset += signature.len();
+        }
+
+        signature_found
+    }
+
     pub fn set_format(&mut self, format: Format) {
         self.format = format;
     }
@@ -96,7 +115,8 @@ impl<'a> ByteStream<'a> {
 #[cfg(test)]
 mod tests {
     use super::ByteStream;
-    use crate::{BitWidth, Endianness, Format, LunifyError, number::Number};
+    use crate::number::Number;
+    use crate::{BitWidth, Endianness, Format, LunifyError};
 
     const TEST_FORMAT: Format = Format {
         format: 80,

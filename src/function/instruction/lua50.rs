@@ -10,15 +10,20 @@ use super::operant::{Bx, SignedBx, BC};
 /// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Settings {
+pub struct Settings<'a> {
     /// Number of elements to put on the stack before inserting a SETLIST
     /// instruction (LFIELDS_PER_FLUSH).
     pub fields_per_flush: u64,
+    /// Lua binary file signature (LUA_SIGNATURE).
+    pub binary_signature: &'a str,
 }
 
-impl Default for Settings {
+impl<'a> Default for Settings<'a> {
     fn default() -> Self {
-        Self { fields_per_flush: 32 }
+        Self {
+            fields_per_flush: 32,
+            binary_signature: "\x1bLua",
+        }
     }
 }
 

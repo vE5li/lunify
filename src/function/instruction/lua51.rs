@@ -12,20 +12,26 @@ use super::operant::{Bx, SignedBx, BC};
 /// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Settings {
+pub struct Settings<'a> {
     /// Number of elements to put on the stack before insterting a SETLIST
     /// instruction (LFIELDS_PER_FLUSH).
     pub fields_per_flush: u64,
     /// Maximum number of elements that can be on the stack at the same time
     /// (MAXSTACK).
     pub stack_limit: u64,
+    /// Lua binary file signature of the input (LUA_SIGNATURE).
+    pub input_binary_signature: &'a str,
+    /// Lua binary file signature of the output (LUA_SIGNATURE).
+    pub output_binary_signature: &'a str,
 }
 
-impl Default for Settings {
+impl<'a> Default for Settings<'a> {
     fn default() -> Self {
         Self {
             fields_per_flush: 50,
             stack_limit: 250,
+            input_binary_signature: "\x1bLua",
+            output_binary_signature: "\x1bLua",
         }
     }
 }

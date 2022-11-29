@@ -10,9 +10,9 @@ use super::{lua50, lua51};
 /// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Settings {
+pub struct Settings<'a> {
     /// Lua 5.0 compile constants.
-    pub lua50: lua50::Settings,
+    pub lua50: lua50::Settings<'a>,
     /// Lua 5.1 compile constants.
-    pub lua51: lua51::Settings,
+    pub lua51: lua51::Settings<'a>,
 }

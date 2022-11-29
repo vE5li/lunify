@@ -343,14 +343,20 @@ pub(crate) fn upcast(
 #[cfg(test)]
 mod tests {
     use super::{lua50, lua51, Bx, BC};
-    use crate::{LunifyError, Settings, function::upcast};
+    use crate::function::upcast;
+    use crate::{LunifyError, Settings};
 
-    fn test_settings() -> Settings {
-        let lua50 = lua50::Settings { fields_per_flush: 5 };
+    fn test_settings() -> Settings<'static> {
+        let lua50 = lua50::Settings {
+            fields_per_flush: 5,
+            ..lua50::Settings::default()
+        };
+
         let lua51 = lua51::Settings {
             fields_per_flush: 8,
             ..lua51::Settings::default()
         };
+
         Settings { lua50, lua51 }
     }
 
