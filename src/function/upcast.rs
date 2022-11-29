@@ -222,20 +222,24 @@ pub(crate) fn upcast(
                 // simplicity.
                 builder.extra_instruction(lua51::Instruction::Jump { a, mode });
             }
-            lua50::Instruction::SetList { a, mode: Bx(bx) } => {
+            lua50::Instruction::SetList { a, mode: Bx(bx) } | lua50::Instruction::SetListO { a, mode: Bx(bx) } => {
                 let flat_index = bx + 1;
                 let page = flat_index / settings.lua51.fields_per_flush;
                 let offset = flat_index % settings.lua51.fields_per_flush;
+
+                // In Lua 5.1 SETLISTO and SETLIST became a single instruction. The behaviour
+                // of SETLISTO is used when b is equal to zero.
+                let b = match matches!(instruction, lua50::Instruction::SetListO { .. }) {
+                    true => 0,
+                    false => offset,
+                };
 
                 // Good case: we are on the first page and the number of entries is smaller than
                 // either LFIELDS_PER_FLUSH, meaning we can just insert a
                 // SETLIST instruction without any modification to
                 // the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua50.fields_per_flush, settings.lua51.fields_per_flush) {
-                    builder.instruction(lua51::Instruction::SetList {
-                        a,
-                        mode: BC(flat_index, 1),
-                    });
+                    builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, 1) });
                     continue;
                 }
 
@@ -291,11 +295,9 @@ pub(crate) fn upcast(
                 // Append the original instruction.
                 builder.instruction(lua51::Instruction::SetList {
                     a,
-                    mode: BC(offset, page + 1),
+                    mode: BC(b, page + 1),
                 });
             }
-            // TODO: Pretty sure that this is correct but validate anyway.
-            lua50::Instruction::SetListO { a, mode: Bx(bx) } => builder.instruction(lua51::Instruction::SetList { a, mode: BC(0, bx) }),
             lua50::Instruction::Close { a, mode } => builder.instruction(lua51::Instruction::Close { a, mode }),
             lua50::Instruction::Closure { a, mode } => builder.instruction(lua51::Instruction::Closure { a, mode }),
         };

@@ -153,6 +153,17 @@ mod tests {
     }
 
     #[test]
+    fn for_loop() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/for_loop.luab").to_vec();
+        let output_format = Format::default();
+        let _output_bytes = unify(&input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&_output_bytes);
+        Ok(())
+    }
+
+    #[test]
     fn custom_signature() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/custom_signature.luab").to_vec();
         let output_format = Format::default();
