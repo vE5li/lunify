@@ -151,6 +151,17 @@ mod tests {
     }
 
     #[test]
+    fn dynamic_table() -> Result<(), LunifyError> {
+        let input_bytes = include_bytes!("../test_files/dynamic_table.luab");
+        let output_format = Format::default();
+        let _output_bytes = unify(input_bytes, output_format, Default::default())?;
+
+        #[cfg(feature = "integration")]
+        test_output(&_output_bytes);
+        Ok(())
+    }
+
+    #[test]
     fn variadic() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/variadic.luab");
         let output_format = Format::default();
