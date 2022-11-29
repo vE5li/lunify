@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::LunifyError;
 
-/// List of supported Lua versions.
+/// The endianness of Lua-internal types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Endianness {

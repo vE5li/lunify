@@ -3,7 +3,7 @@ use std::fmt::Display;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// The width of Lua internal types in bits.
+/// The width of Lua-internal types in bits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BitWidth {
@@ -60,5 +60,15 @@ mod tests {
     #[test]
     fn unsupported_width() {
         assert_eq!(BitWidth::try_from(6), Err(6));
+    }
+
+    #[test]
+    fn format_bit32() {
+        assert_eq!(format!("{}", BitWidth::Bit32).as_str(), "32 bit");
+    }
+
+    #[test]
+    fn format_bit64() {
+        assert_eq!(format!("{}", BitWidth::Bit64).as_str(), "64 bit");
     }
 }

@@ -1,44 +1,7 @@
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
-use crate::function::Constant;
-use crate::stream::ByteStream;
+use super::builder::InstructionBuilder;
+use super::constant::{Constant, ConstantManager};
+use super::instruction::{lua50, lua51, Bx, Settings, SignedBx, BC};
 use crate::LunifyError;
-
-#[macro_use]
-mod macros;
-mod builder;
-mod constant;
-pub mod lua50;
-pub mod lua51;
-mod operant;
-
-use builder::InstructionBuilder;
-
-use self::constant::ConstantManager;
-use self::operant::{Bx, SignedBx, BC};
-
-pub(crate) trait RepresentInstruction: Sized {
-    fn from_byte_stream(byte_stream: &mut ByteStream) -> Result<Self, LunifyError>;
-    fn to_u64(&self) -> u64;
-}
-
-impl RepresentInstruction for u64 {
-    fn from_byte_stream(byte_stream: &mut ByteStream) -> Result<Self, LunifyError> {
-        byte_stream.instruction()
-    }
-
-    fn to_u64(&self) -> u64 {
-        *self
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Settings {
-    pub lua50: lua50::Settings,
-    pub lua51: lua51::Settings,
-}
 
 pub(crate) fn upcast(
     instructions: Vec<lua50::Instruction>,
@@ -115,7 +78,7 @@ pub(crate) fn upcast(
                 // jump to. It is very important that we take the adjusted position because
                 // we might have added or remove instructions inside the for loop, which would
                 // make the old Bx invalid.
-                let position = builder.adjusted_jump_destination(mode.0) + 1;
+                let position = builder.adjusted_jump_destination(mode.0)?;
 
                 // Instruction to restore RA+3 if we take the jump.
                 // This instruction is actually inserted *before* the SETGLOBAL instruction, but
@@ -379,10 +342,8 @@ pub(crate) fn upcast(
 
 #[cfg(test)]
 mod tests {
-    use super::operant::{Bx, BC};
-    use super::{lua50, lua51};
-    use crate::instruction::{upcast, Settings};
-    use crate::LunifyError;
+    use super::{lua50, lua51, Bx, BC};
+    use crate::{LunifyError, Settings, function::upcast};
 
     fn test_settings() -> Settings {
         let lua50 = lua50::Settings { fields_per_flush: 5 };

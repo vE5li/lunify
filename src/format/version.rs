@@ -46,17 +46,37 @@ mod tests {
     use super::{LuaVersion, LunifyError};
 
     #[test]
-    fn lua_51() {
+    fn lua51() {
         assert_eq!(0x51.try_into(), Ok(LuaVersion::Lua51));
     }
 
     #[test]
-    fn lua_50() {
+    fn lua50() {
         assert_eq!(0x50.try_into(), Ok(LuaVersion::Lua50));
     }
 
     #[test]
     fn unsupported_version() {
         assert_eq!(LuaVersion::try_from(0x52), Err(LunifyError::UnsupportedVersion(0x52)));
+    }
+
+    #[test]
+    fn lua50_to_u8() {
+        assert_eq!(u8::from(LuaVersion::Lua50), 0x50);
+    }
+
+    #[test]
+    fn lua51_to_u8() {
+        assert_eq!(u8::from(LuaVersion::Lua51), 0x51);
+    }
+
+    #[test]
+    fn format_lua50() {
+        assert_eq!(format!("{}", LuaVersion::Lua50).as_str(), "Lua 5.0");
+    }
+
+    #[test]
+    fn format_lua51() {
+        assert_eq!(format!("{}", LuaVersion::Lua51).as_str(), "Lua 5.1");
     }
 }

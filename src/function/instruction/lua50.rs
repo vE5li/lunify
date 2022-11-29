@@ -3,9 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use super::operant::{Bx, SignedBx, BC};
 
+/// Lua 5.0 compile constants. The Lua interpreter is compiled with certain
+/// predefined constants that affect how the bytecode is generated. This
+/// structure represents a small subset of the constants that are relevant for
+/// Lunify. If the bytecode you are trying to modify was complied with
+/// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
+    /// Number of elements to put on the stack before inserting a SETLIST
+    /// instruction (LFIELDS_PER_FLUSH).
     pub fields_per_flush: u64,
 }
 

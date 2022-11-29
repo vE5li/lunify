@@ -1,20 +1,6 @@
 use crate::number::Number;
 use crate::{BitWidth, Endianness, Format, LunifyError};
 
-// Workaround untli from_le_bytes is part of a trait.
-macro_rules! to_slice {
-    ($writer:expr, $value:expr, $width:ident, $type32:ty) => {
-        match ($writer.format.$width, $writer.format.endianness) {
-            (BitWidth::Bit32, Endianness::Little) => $writer.slice(&($value as $type32).to_le_bytes()),
-            (BitWidth::Bit32, Endianness::Big) => $writer.slice(&($value as $type32).to_be_bytes()),
-            (BitWidth::Bit64, Endianness::Little) => $writer.slice(&$value.to_le_bytes()),
-            (BitWidth::Bit64, Endianness::Big) => $writer.slice(&$value.to_be_bytes()),
-        }
-    };
-}
-
-pub(crate) use to_slice;
-
 pub(crate) struct ByteWriter {
     data: Vec<u8>,
     format: Format,
@@ -67,8 +53,7 @@ impl ByteWriter {
 #[cfg(test)]
 mod tests {
     use super::ByteWriter;
-    use crate::number::Number;
-    use crate::{BitWidth, Endianness, Format, LunifyError};
+    use crate::{BitWidth, Endianness, Format, LunifyError, number::Number};
 
     const TEST_FORMAT: Format = Format {
         format: 0,

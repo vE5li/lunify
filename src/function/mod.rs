@@ -1,23 +1,17 @@
-use crate::instruction::{lua50, upcast, RepresentInstruction, Settings};
-use crate::number::Number;
-use crate::stream::ByteStream;
-use crate::version::LuaVersion;
-use crate::writer::ByteWriter;
+mod builder;
+mod constant;
+mod instruction;
+mod local;
+mod upcast;
+
+use self::constant::Constant;
+use self::instruction::RepresentInstruction;
+pub use self::instruction::{lua50, lua51, Settings};
+use self::local::LocalVariable;
+use self::upcast::upcast;
+use crate::format::LuaVersion;
+use crate::serialization::{ByteStream, ByteWriter};
 use crate::LunifyError;
-
-#[derive(Debug)]
-pub(crate) enum Constant {
-    Nil,
-    Boolean(u8),
-    Number(Number),
-    String(String),
-}
-
-pub(crate) struct LocalVariable {
-    pub(crate) name: String,
-    pub(crate) start_program_counter: i64,
-    pub(crate) end_program_counter: i64,
-}
 
 pub struct Function {
     source_file: String,

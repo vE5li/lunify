@@ -2,14 +2,14 @@
 use serde::{Deserialize, Serialize};
 
 mod endianness;
+mod version;
 mod width;
 
 pub use endianness::Endianness;
+pub(crate) use version::LuaVersion;
 pub use width::BitWidth;
 
-use crate::stream::{from_slice, ByteStream};
-use crate::version::LuaVersion;
-use crate::writer::ByteWriter;
+use crate::serialization::{ByteStream, ByteWriter};
 use crate::LunifyError;
 
 /// Lua bytecode format.
@@ -22,13 +22,13 @@ pub struct Format {
     pub endianness: Endianness,
     /// The width of an integer on the target system.
     pub integer_width: BitWidth,
-    /// The size of a C type_t on the target system. Also the pointer width.
+    /// The size of a C `type_t` on the target system. Also the pointer width.
     pub size_t_width: BitWidth,
     /// The size of a Lua instruction inside the binary.
     pub instruction_width: BitWidth,
     /// The size of the Lua number type.
     pub number_width: BitWidth,
-    /// If a Lua number is stored as an integer or a flaot.
+    /// If a Lua number is stored as an integer or a float.
     pub is_number_integral: bool,
 }
 
@@ -128,7 +128,8 @@ impl Format {
 #[cfg(test)]
 mod tests {
     use super::LuaVersion;
-    use crate::{BitWidth, ByteStream, ByteWriter, Endianness, Format, LunifyError};
+    use crate::serialization::{ByteStream, ByteWriter};
+    use crate::{BitWidth, Endianness, Format, LunifyError};
 
     const EXPECTED_FORMAT: Format = Format {
         format: 0,
@@ -156,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn lua_50() -> Result<(), LunifyError> {
+    fn lua50() -> Result<(), LunifyError> {
         let result = from_test_data(LuaVersion::Lua50, &[
             1, 4, 8, 4, 6, 8, 9, 9, 8, 0xB6, 0x09, 0x93, 0x68, 0xE7, 0xF5, 0x7D, 0x41,
         ])?;
@@ -172,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn lua_50_unsupported_instruction_format() {
+    fn lua50_unsupported_instruction_format() {
         let result = from_test_data(LuaVersion::Lua50, &[1, 4, 8, 4, 6, 9, 8, 9]);
         assert_eq!(result, Err(LunifyError::UnsupportedInstructionFormat([6, 9, 8, 9])));
     }

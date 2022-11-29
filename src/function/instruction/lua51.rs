@@ -5,10 +5,19 @@ use serde::{Deserialize, Serialize};
 
 use super::operant::{Bx, SignedBx, BC};
 
+/// Lua 5.1 compile constants. The Lua interpreter is compiled with certain
+/// predefined constants that affect how the bytecode is generated. This
+/// structure represents a small subset of the constants that are relevant for
+/// Lunify. If the bytecode you are trying to modify was complied with
+/// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
+    /// Number of elements to put on the stack before insterting a SETLIST
+    /// instruction (LFIELDS_PER_FLUSH).
     pub fields_per_flush: u64,
+    /// Maximum number of elements that can be on the stack at the same time
+    /// (MAXSTACK).
     pub stack_limit: u64,
 }
 
@@ -63,7 +72,7 @@ lua_instructions! {
 }
 
 impl Instruction {
-    pub(super) fn stack_destination(&self) -> Option<Range<u64>> {
+    pub(crate) fn stack_destination(&self) -> Option<Range<u64>> {
         match *self {
             Instruction::Move { a, .. } => Some(a..a),
             Instruction::LoadK { a, .. } => Some(a..a),
@@ -106,7 +115,7 @@ impl Instruction {
         }
     }
 
-    pub(super) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64) {
+    pub(crate) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64) {
         let offset = |position: &mut u64| {
             let value = *position;
             if value >= stack_start && value & super::operant::LUA_CONST_BIT == 0 {
@@ -155,7 +164,9 @@ impl Instruction {
                 offset(b);
                 offset(c);
             }
-            Instruction::Unary { a, mode: BC(b, _) } | Instruction::Not { a, mode: BC(b, _) } | Instruction::Length { a, mode: BC(b, _) } => {
+            Instruction::Unary { a, mode: BC(b, _) }
+            | Instruction::Not { a, mode: BC(b, _) }
+            | Instruction::Length { a, mode: BC(b, _) } => {
                 offset(a);
                 offset(b);
             }
@@ -165,7 +176,9 @@ impl Instruction {
                 offset(c);
             }
             Instruction::Jump { .. } => {}
-            Instruction::Equals { mode: BC(b, c), .. } | Instruction::LessThan { mode: BC(b, c), .. } | Instruction::LessEquals { mode: BC(b, c), .. } => {
+            Instruction::Equals { mode: BC(b, c), .. }
+            | Instruction::LessThan { mode: BC(b, c), .. }
+            | Instruction::LessEquals { mode: BC(b, c), .. } => {
                 offset(b);
                 offset(c);
             }
