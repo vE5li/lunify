@@ -49,7 +49,10 @@ impl Function {
         let mut constants = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("constant_count: {}", constant_count);
+        {
+            println!("constant_count: {}", constant_count);
+            println!("\n======== Constants ========");
+        }
 
         for _index in 0..constant_count as usize {
             let constant_type = byte_stream.byte()?;
@@ -101,7 +104,7 @@ impl Function {
         let mut functions = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("function_count: {}", function_count);
+        println!("\nfunction_count: {}", function_count);
 
         for _index in 0..function_count as usize {
             let function = Function::from_byte_stream(byte_stream, version, settings)?;
@@ -116,7 +119,10 @@ impl Function {
         let mut local_variables = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("local_variable_count: {}", local_variable_count);
+        {
+            println!("local_variable_count: {}", local_variable_count);
+            println!("\n======== Local variables ========");
+        }
 
         for _index in 0..local_variable_count as usize {
             let name = byte_stream.string()?;
@@ -150,10 +156,6 @@ impl Function {
 
         for _index in 0..line_info_count as usize {
             let line = byte_stream.integer()?;
-
-            #[cfg(feature = "debug")]
-            println!("intruction {}: line {}", _index, line);
-
             line_info.push(line);
         }
 
@@ -165,7 +167,7 @@ impl Function {
         let mut upvalues = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("upvalue_count: {}", upvalue_count);
+        println!("\nupvalue_count: {}", upvalue_count);
 
         for _index in 0..upvalue_count as usize {
             let upvalue = byte_stream.string()?;
@@ -195,6 +197,7 @@ impl Function {
 
         #[cfg(feature = "debug")]
         {
+            println!("\n======== Function ========");
             println!("source_file: {}", source_file);
             println!("line_defined: {}", line_defined);
             println!("last_line_defined: {}", last_line_defined);

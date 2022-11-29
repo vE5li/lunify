@@ -30,12 +30,18 @@ pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> R
     let version = byte_stream.byte()?.try_into()?;
 
     #[cfg(feature = "debug")]
-    println!("version: {}", version);
+    {
+        println!("\n======== Header ========");
+        println!("version: {}", version);
+    }
 
     let input_format = Format::from_byte_stream(&mut byte_stream, version)?;
 
     // If the input is already in the correct format, return it as is.
     if input_format == output_format && !cfg!(test) {
+        #[cfg(feature = "debug")]
+        println!("\n======== Done ========\n");
+
         return Ok(input_bytes.to_vec());
     }
 
@@ -53,6 +59,9 @@ pub fn unify(input_bytes: &[u8], output_format: Format, settings: Settings) -> R
     byte_writer.byte(LuaVersion::Lua51.into());
     output_format.write(&mut byte_writer);
     root_function.write(&mut byte_writer)?;
+
+    #[cfg(feature = "debug")]
+    println!("======== Done ========\n");
 
     Ok(byte_writer.finalize())
 }

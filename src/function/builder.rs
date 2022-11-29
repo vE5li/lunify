@@ -115,6 +115,10 @@ impl InstructionBuilder {
     }
 
     pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: Settings) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
+
+        #[cfg(feature = "debug")]
+        println!("\n======== Output ========");
+
         for context_index in 0..self.contexts.len() {
             // The stack positions might have changed significantly, so go over every
             // instruction and make sure that the maxstacksize is big enough. If the stack
@@ -156,9 +160,9 @@ impl InstructionBuilder {
             #[cfg(feature = "debug")]
             {
                 let context = &self.contexts[context_index];
-                println!();
                 println!("[{}] {:?}", context_index, context.instruction);
                 println!(" -> {:?}", context.line_weight);
+                println!();
             }
         }
 

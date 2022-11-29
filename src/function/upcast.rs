@@ -16,7 +16,7 @@ pub(crate) fn upcast(
     let mut constant_manager = ConstantManager { constants };
 
     #[cfg(feature = "debug")]
-    println!("\n======== input ========");
+    println!("\n======== Input ========");
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
         #[cfg(feature = "debug")]
