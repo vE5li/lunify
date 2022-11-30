@@ -1,13 +1,13 @@
 use crate::number::Number;
 use crate::{BitWidth, Endianness, Format, LunifyError};
 
-pub(crate) struct ByteWriter {
+pub(crate) struct ByteWriter<'a> {
     data: Vec<u8>,
-    format: Format,
+    format: &'a Format,
 }
 
-impl ByteWriter {
-    pub fn new(format: Format) -> Self {
+impl<'a> ByteWriter<'a> {
+    pub fn new(format: &'a Format) -> Self {
         let data = Vec::new();
         Self { data, format }
     }
@@ -53,7 +53,8 @@ impl ByteWriter {
 #[cfg(test)]
 mod tests {
     use super::ByteWriter;
-    use crate::{BitWidth, Endianness, Format, LunifyError, number::Number};
+    use crate::number::Number;
+    use crate::{BitWidth, Endianness, Format, LunifyError};
 
     const TEST_FORMAT: Format = Format {
         format: 0,
@@ -111,14 +112,14 @@ mod tests {
 
     #[test]
     fn byte() {
-        let mut writer = ByteWriter::new(TEST_FORMAT);
+        let mut writer = ByteWriter::new(&TEST_FORMAT);
         writer.byte(9);
         assert_eq!(writer.data, &[9]);
     }
 
     #[test]
     fn slice() {
-        let mut writer = ByteWriter::new(TEST_FORMAT);
+        let mut writer = ByteWriter::new(&TEST_FORMAT);
         writer.slice(&[7, 8, 9]);
         assert_eq!(writer.data, &[7, 8, 9]);
     }
@@ -133,7 +134,8 @@ mod tests {
         ];
 
         for configuration in configurations {
-            let mut writer = ByteWriter::new(configuration.format());
+            let format = configuration.format();
+            let mut writer = ByteWriter::new(&format);
             writer.integer(configuration.value);
             assert_eq!(writer.data, configuration.expected);
         }
@@ -149,7 +151,8 @@ mod tests {
         ];
 
         for configuration in configurations {
-            let mut writer = ByteWriter::new(configuration.format());
+            let format = configuration.format();
+            let mut writer = ByteWriter::new(&format);
             writer.size_t(configuration.value);
             assert_eq!(writer.data, configuration.expected);
         }
@@ -165,7 +168,8 @@ mod tests {
         ];
 
         for configuration in configurations {
-            let mut writer = ByteWriter::new(configuration.format());
+            let format = configuration.format();
+            let mut writer = ByteWriter::new(&format);
             writer.instruction(configuration.value);
             assert_eq!(writer.data, configuration.expected);
         }
@@ -187,7 +191,8 @@ mod tests {
         ];
 
         for configuration in configurations {
-            let mut writer = ByteWriter::new(configuration.format());
+            let format = configuration.format();
+            let mut writer = ByteWriter::new(&format);
             writer.number(configuration.value)?;
             assert_eq!(writer.data, configuration.expected);
         }
@@ -197,7 +202,7 @@ mod tests {
 
     #[test]
     fn string() {
-        let mut writer = ByteWriter::new(TEST_FORMAT);
+        let mut writer = ByteWriter::new(&TEST_FORMAT);
         writer.string("LUA");
         assert_eq!(writer.data, &[3, 0, 0, 0, b'L', b'U', b'A']);
     }
@@ -206,7 +211,7 @@ mod tests {
     fn finalize() {
         let writer = ByteWriter {
             data: vec![7, 8, 9],
-            format: TEST_FORMAT,
+            format: &TEST_FORMAT,
         };
         assert_eq!(writer.finalize(), &[7, 8, 9]);
     }

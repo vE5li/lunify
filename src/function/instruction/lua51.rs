@@ -4,6 +4,7 @@ use std::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use super::operant::{Bx, SignedBx, BC};
+use super::{InstructionLayout, OperantType};
 
 /// Lua 5.1 compile constants. The Lua interpreter is compiled with certain
 /// predefined constants that affect how the bytecode is generated. This
@@ -13,16 +14,19 @@ use super::operant::{Bx, SignedBx, BC};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings<'a> {
-    /// Number of elements to put on the stack before insterting a SETLIST
-    /// instruction (LFIELDS_PER_FLUSH).
-    pub fields_per_flush: u64,
     /// Maximum number of elements that can be on the stack at the same time
-    /// (MAXSTACK).
+    /// (`MAXSTACK`).
     pub stack_limit: u64,
-    /// Lua binary file signature of the input (LUA_SIGNATURE).
+    /// Number of elements to put on the stack before inserting a `SETLIST`
+    /// instruction (`LFIELDS_PER_FLUSH`).
+    pub fields_per_flush: u64,
+    /// Lua binary file signature of the input (`LUA_SIGNATURE`).
     pub input_binary_signature: &'a str,
-    /// Lua binary file signature of the output (LUA_SIGNATURE).
+    /// Lua binary file signature of the output (`LUA_SIGNATURE`).
     pub output_binary_signature: &'a str,
+    /// Memory layout of instructions inside the Lua bytecode (`SIZE_*`,
+    /// `POS_*`).
+    pub layout: InstructionLayout,
 }
 
 impl<'a> Default for Settings<'a> {
@@ -32,7 +36,19 @@ impl<'a> Default for Settings<'a> {
             stack_limit: 250,
             input_binary_signature: "\x1bLua",
             output_binary_signature: "\x1bLua",
+            layout: InstructionLayout::from_specification([
+                OperantType::Opcode(6),
+                OperantType::A(8),
+                OperantType::C(9),
+                OperantType::B(9),
+            ]),
         }
+    }
+}
+
+impl<'a> Settings<'a> {
+    pub(crate) fn get_constant_bit(&self) -> u64 {
+        1 << (self.layout.b.size - 1)
     }
 }
 
@@ -121,10 +137,10 @@ impl Instruction {
         }
     }
 
-    pub(crate) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64) {
+    pub(crate) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64, settings: &Settings) {
         let offset = |position: &mut u64| {
             let value = *position;
-            if value >= stack_start && value & super::operant::LUA_CONST_BIT == 0 {
+            if value >= stack_start && value & settings.get_constant_bit() == 0 {
                 *position = (value as i64 + offset) as u64;
             }
         };

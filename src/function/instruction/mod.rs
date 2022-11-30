@@ -8,6 +8,7 @@ mod operant;
 mod represent;
 mod settings;
 
+pub(crate) use self::operant::{Bx, SignedBx, BC};
+pub use self::operant::{InstructionLayout, OperantType};
 pub(crate) use self::represent::RepresentInstruction;
-pub(crate) use self::operant::{BC, Bx, SignedBx};
 pub use self::settings::Settings;

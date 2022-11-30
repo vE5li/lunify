@@ -6,7 +6,7 @@ mod upcast;
 
 use self::constant::Constant;
 use self::instruction::RepresentInstruction;
-pub use self::instruction::{lua50, lua51, Settings};
+pub use self::instruction::{lua50, lua51, InstructionLayout, OperantType, Settings};
 use self::local::LocalVariable;
 use self::upcast::upcast;
 use crate::format::LuaVersion;
@@ -29,7 +29,11 @@ pub struct Function {
 }
 
 impl Function {
-    fn get_instructions<T: RepresentInstruction>(byte_stream: &mut ByteStream) -> Result<Vec<T>, LunifyError> {
+    fn get_instructions<T: RepresentInstruction>(
+        byte_stream: &mut ByteStream,
+        settings: &Settings,
+        layout: &InstructionLayout,
+    ) -> Result<Vec<T>, LunifyError> {
         let instruction_count = byte_stream.integer()?;
         let mut instructions = Vec::new();
 
@@ -37,7 +41,7 @@ impl Function {
         println!("instruction_count: {}", instruction_count);
 
         for _index in 0..instruction_count as usize {
-            let instruction = T::from_byte_stream(byte_stream)?;
+            let instruction = T::from_byte_stream(byte_stream, settings, layout)?;
             instructions.push(instruction);
         }
 
@@ -99,7 +103,7 @@ impl Function {
         Ok(constants)
     }
 
-    fn get_functions(byte_stream: &mut ByteStream, version: LuaVersion, settings: Settings) -> Result<Vec<Function>, LunifyError> {
+    fn get_functions(byte_stream: &mut ByteStream, version: LuaVersion, settings: &Settings) -> Result<Vec<Function>, LunifyError> {
         let function_count = byte_stream.integer()?;
         let mut functions = Vec::new();
 
@@ -181,7 +185,7 @@ impl Function {
         Ok(upvalues)
     }
 
-    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion, settings: Settings) -> Result<Self, LunifyError> {
+    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion, settings: &Settings) -> Result<Self, LunifyError> {
         let source_file = byte_stream.string()?;
         let line_defined = byte_stream.integer()?;
 
@@ -208,7 +212,7 @@ impl Function {
         }
 
         let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == LuaVersion::Lua51 {
-            let instructions = Self::get_instructions(byte_stream)?;
+            let instructions = Self::get_instructions(byte_stream, settings, &settings.lua51.layout)?;
             let constants = Self::get_constants(byte_stream)?;
             let functions = Self::get_functions(byte_stream, version, settings)?;
             let line_info = Self::get_line_info(byte_stream)?;
@@ -222,7 +226,7 @@ impl Function {
             let upvalues = Self::get_upvalues(byte_stream)?;
             let mut constants = Self::get_constants(byte_stream)?;
             let functions = Self::get_functions(byte_stream, version, settings)?;
-            let instructions = Self::get_instructions::<lua50::Instruction>(byte_stream)?;
+            let instructions = Self::get_instructions::<lua50::Instruction>(byte_stream, settings, &settings.lua50.layout)?;
 
             // TODO: confirm
             // TODO: document
@@ -239,7 +243,10 @@ impl Function {
                 settings,
             )?;
 
-            let instructions = instructions.into_iter().map(|instruction| instruction.to_u64()).collect();
+            let instructions = instructions
+                .into_iter()
+                .map(|instruction| instruction.to_u64(settings, &settings.lua51.layout))
+                .collect();
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
         };

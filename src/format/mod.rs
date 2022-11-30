@@ -10,7 +10,7 @@ pub(crate) use version::LuaVersion;
 pub use width::BitWidth;
 
 use crate::serialization::{ByteStream, ByteWriter};
-use crate::LunifyError;
+use crate::{LunifyError, Settings};
 
 /// Lua bytecode format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -60,7 +60,7 @@ impl Default for Format {
 }
 
 impl Format {
-    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion) -> Result<Self, LunifyError> {
+    pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion, settings: &Settings) -> Result<Self, LunifyError> {
         let format = match version {
             LuaVersion::Lua51 => byte_stream.byte()?,
             LuaVersion::Lua50 => 0,
@@ -73,8 +73,14 @@ impl Format {
 
         if version == LuaVersion::Lua50 {
             let instruction_format = byte_stream.slice(4)?;
+            let expected = [
+                settings.lua50.layout.opcode.size as u8,
+                settings.lua50.layout.a.size as u8,
+                settings.lua50.layout.b.size as u8,
+                settings.lua50.layout.c.size as u8,
+            ];
 
-            if instruction_format != [6, 8, 9, 9] {
+            if instruction_format != expected {
                 return Err(LunifyError::UnsupportedInstructionFormat(
                     instruction_format.try_into().unwrap(),
                 ));
@@ -129,7 +135,7 @@ impl Format {
 mod tests {
     use super::LuaVersion;
     use crate::serialization::{ByteStream, ByteWriter};
-    use crate::{BitWidth, Endianness, Format, LunifyError};
+    use crate::{BitWidth, Endianness, Format, LunifyError, Settings};
 
     const EXPECTED_FORMAT: Format = Format {
         format: 0,
@@ -143,7 +149,7 @@ mod tests {
 
     fn from_test_data(version: LuaVersion, bytes: &[u8]) -> Result<Format, LunifyError> {
         let mut byte_stream = ByteStream::new(bytes);
-        let result = Format::from_byte_stream(&mut byte_stream, version);
+        let result = Format::from_byte_stream(&mut byte_stream, version, &Settings::default());
 
         assert!(byte_stream.is_empty());
         result
@@ -167,7 +173,7 @@ mod tests {
 
     #[test]
     fn write() {
-        let mut byter_writer = ByteWriter::new(EXPECTED_FORMAT);
+        let mut byter_writer = ByteWriter::new(&EXPECTED_FORMAT);
         EXPECTED_FORMAT.write(&mut byter_writer);
         assert_eq!(byter_writer.finalize(), [0, 1, 4, 8, 4, 8, 0]);
     }

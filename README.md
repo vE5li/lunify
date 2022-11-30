@@ -25,5 +25,5 @@ let output_format = Format {
 };
 
 // Convert input bytes to the desired format
-let output_bytes = unify(input_bytes, output_format, Default::default());
+let output_bytes = unify(input_bytes, &output_format, &Default::default());
 ```

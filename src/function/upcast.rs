@@ -10,7 +10,7 @@ pub(crate) fn upcast(
     maxstacksize: &mut u8,
     parameter_count: u8,
     is_variadic: bool,
-    settings: Settings,
+    settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
     let mut builder = InstructionBuilder::default();
     let mut constant_manager = ConstantManager { constants };
@@ -58,7 +58,7 @@ pub(crate) fn upcast(
                 // Lua 5.1 additionally saves the loop index in RA+3, which Lua 5.0 does
                 // not. Therefore we save RA+3 to a global value and restore it afterwards.
 
-                // Create a new constant to hold an idendifier to the global that saves the
+                // Create a new constant to hold an identifier to the global that saves the
                 // value in RA+3.
                 let global_constant = constant_manager.create_unique(builder.get_program_counter());
 
@@ -82,7 +82,7 @@ pub(crate) fn upcast(
 
                 // Instruction to restore RA+3 if we take the jump.
                 // This instruction is actually inserted *before* the SETGLOBAL instruction, but
-                // this works becaues of the way that for loops are generated in
+                // this works because of the way that for loops are generated in
                 // Lua 5.0. There is an initial JMP instruction that moves the
                 // program counter to the FORLOOP instruction, meaning this
                 // GetGlobal will *always* be called after we already saved RA+3
@@ -147,7 +147,7 @@ pub(crate) fn upcast(
                     // of the jump. That JMP instruction doesn't need any modification here.
                     builder.extra_instruction(lua51::Instruction::Equals {
                         a: 0,
-                        mode: BC::const_c(a + 2, constant_nil),
+                        mode: BC::const_c(a + 2, constant_nil, settings),
                     });
                 }
             }
@@ -216,7 +216,7 @@ pub(crate) fn upcast(
                 });
 
                 // Original instruction.
-                // Technially this Jump could be removed if it lands on the very next
+                // Technically this Jump could be removed if it lands on the very next
                 // instruction, which will happen it the next instruction is a
                 // TForLoop. But I think it's better to keep this here for
                 // simplicity.
@@ -248,7 +248,7 @@ pub(crate) fn upcast(
                 for instruction_index in (0..(builder.get_program_counter() - 1)).rev() {
                     let instruction = builder.get_instruction(instruction_index);
 
-                    // It might technially be possible for the element on slot A to be on the stack
+                    // It might technically be possible for the element on slot A to be on the stack
                     // already before any instructions if it is a parameter to a function call. So
                     // we make sure that at least the first instruction will always match.
                     // I am unsure that code like this can actually be emitted by the Lua compiler,
@@ -283,7 +283,9 @@ pub(crate) fn upcast(
                                     }
                                 }
 
-                                builder.get_instruction(instruction_index).move_stack_accesses(a, offset);
+                                builder
+                                    .get_instruction(instruction_index)
+                                    .move_stack_accesses(a, offset, &settings.lua51);
                                 instruction_index += 1;
                             }
                         }
@@ -293,10 +295,7 @@ pub(crate) fn upcast(
                 }
 
                 // Append the original instruction.
-                builder.instruction(lua51::Instruction::SetList {
-                    a,
-                    mode: BC(b, page + 1),
-                });
+                builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, page + 1) });
             }
             lua50::Instruction::Close { a, mode } => builder.instruction(lua51::Instruction::Close { a, mode }),
             lua50::Instruction::Closure { a, mode } => builder.instruction(lua51::Instruction::Closure { a, mode }),
@@ -304,13 +303,11 @@ pub(crate) fn upcast(
     }
 
     // Lua 5.0 used to collect variadic arguments in a table and store them in a
-    // local variable 'args'. Lua 5.1 does things a bit differently, so for
-    // variadic functions we insert instructions that are the eqivalent of
-    // 'local args = {...}'. Since we are at the very beginning of our function
+    // local variable 'arg'. Lua 5.1 does things a bit differently, so for
+    // variadic functions we insert instructions that are the equivalent of
+    // 'local arg = {...}'. Since we are at the very beginning of our function
     // call, we don't need to worry about saving the stack above our
     // arguments.
-    // TODO: find out how much of this we actually need, since Lua 5.1 seems to be
-    // able to use "arg" inside functions.
     if is_variadic {
         let arg_stack_position = parameter_count as u64;
 
@@ -416,7 +413,7 @@ mod tests {
             &mut 2,
             0,
             false,
-            settings,
+            &settings,
         )?;
 
         let expected = lua51_setlist(count, settings);
@@ -453,7 +450,7 @@ mod tests {
             mode: Bx(4),
         }];
 
-        let (instructions, _) = upcast(instructions, vec![0; 2], &mut Vec::new(), &mut 2, 0, false, settings)?;
+        let (instructions, _) = upcast(instructions, vec![0; 2], &mut Vec::new(), &mut 2, 0, false, &settings)?;
         let expected = vec![lua51::Instruction::LoadK { a: 5, mode: Bx(0) }, lua51::Instruction::SetList {
             a: 0,
             mode: BC(5, 1),
@@ -473,7 +470,7 @@ mod tests {
             lua50::Instruction::SetList { a: 0, mode: Bx(5) },
         ];
 
-        let (instructions, _) = upcast(instructions, vec![0; 12], &mut Vec::new(), &mut 2, 0, false, settings)?;
+        let (instructions, _) = upcast(instructions, vec![0; 12], &mut Vec::new(), &mut 2, 0, false, &settings)?;
         let expected = vec![
             lua51::Instruction::LoadK { a: 5, mode: Bx(0) },
             lua51::Instruction::LoadK { a: 6, mode: Bx(0) },
@@ -489,7 +486,7 @@ mod tests {
         let settings = test_settings();
         let instructions = vec![lua50::Instruction::LoadK { a: 1, mode: Bx(0) }];
 
-        let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, true, settings)?;
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, true, &settings)?;
         let expected = vec![
             lua51::Instruction::NewTable { a: 1, mode: BC(0, 0) },
             lua51::Instruction::VarArg { a: 2, mode: BC(0, 0) },

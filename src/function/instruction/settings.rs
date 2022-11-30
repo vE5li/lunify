@@ -12,7 +12,9 @@ use super::{lua50, lua51};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings<'a> {
     /// Lua 5.0 compile constants.
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub lua50: lua50::Settings<'a>,
     /// Lua 5.1 compile constants.
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub lua51: lua51::Settings<'a>,
 }

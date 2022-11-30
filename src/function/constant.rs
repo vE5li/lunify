@@ -55,7 +55,6 @@ mod tests {
     fn create_unique() {
         let mut constants = Vec::new();
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.create_unique(9), 0);
     }
 
@@ -63,7 +62,6 @@ mod tests {
     fn create_unique_twice() {
         let mut constants = vec![Constant::String("__%lunify%__temp9\0".to_owned())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.create_unique(9), 1);
     }
 
@@ -71,7 +69,6 @@ mod tests {
     fn constant_for_str() {
         let mut constants = Vec::new();
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.constant_for_str("test"), 0);
     }
 
@@ -79,7 +76,6 @@ mod tests {
     fn constant_for_str_duplicate() {
         let mut constants = vec![Constant::String("test\0".to_owned())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.constant_for_str("test"), 0);
     }
 
@@ -87,7 +83,6 @@ mod tests {
     fn constant_nil() {
         let mut constants = Vec::new();
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.constant_nil(), 0);
     }
 
@@ -95,7 +90,6 @@ mod tests {
     fn constant_nil_duplicate() {
         let mut constants = vec![Constant::Nil];
         let mut constant_manager = ConstantManager { constants: &mut constants };
-
         assert_eq!(constant_manager.constant_nil(), 0);
     }
 }

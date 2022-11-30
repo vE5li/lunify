@@ -80,27 +80,27 @@ impl InstructionBuilder {
         self.contexts.len()
     }
 
-    fn jump_destination(&self, context_index: usize, mut bx: i64, final_offset: i64) -> Result<i64, LunifyError> {
-        let (mut steps, mut offset) = match bx.is_positive() {
-            true => (bx + 1, 1),
-            false => (bx.abs(), 0),
+    fn jump_destination(&self, context_index: usize, mut destination: i64, final_offset: i64) -> Result<i64, LunifyError> {
+        let (mut steps, mut offset) = match destination.is_positive() {
+            true => (destination + 1, 1),
+            false => (destination.abs(), 0),
         };
 
         while steps != 0 {
-            let index = match bx.is_positive() {
+            let index = match destination.is_positive() {
                 true => context_index + offset,
                 false => context_index - offset,
             };
             let context = self.contexts[index];
 
-            bx += context.line_weight * bx.signum();
+            destination += context.line_weight * destination.signum();
             steps += context.line_weight - 1;
             offset += 1;
         }
 
-        bx += final_offset;
+        destination += final_offset;
         // TODO: Make sure that Bx is still in bounds.
-        Ok(bx)
+        Ok(destination)
     }
 
     pub(super) fn adjusted_jump_destination(&self, bx: i64) -> Result<usize, LunifyError> {
@@ -114,8 +114,7 @@ impl InstructionBuilder {
         Ok(((program_counter as i64) + new_bx) as usize)
     }
 
-    pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: Settings) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
-
+    pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: &Settings) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
         #[cfg(feature = "debug")]
         println!("\n======== Output ========");
 
@@ -174,7 +173,9 @@ impl InstructionBuilder {
 #[cfg(test)]
 mod tests {
     use super::InstructionBuilder;
-    use crate::{lua51, LunifyError, function::{builder::InstructionContext, instruction::{Bx, SignedBx}}};
+    use crate::function::builder::InstructionContext;
+    use crate::function::instruction::{Bx, SignedBx};
+    use crate::{lua51, LunifyError};
 
     #[test]
     fn instruction_context_new() {
@@ -404,7 +405,7 @@ mod tests {
         let mut maxstacksize = 0;
 
         builder.instruction(instruction);
-        builder.finalize(&mut maxstacksize, Default::default())?;
+        builder.finalize(&mut maxstacksize, &Default::default())?;
 
         assert_eq!(maxstacksize, 11);
         Ok(())
@@ -418,7 +419,7 @@ mod tests {
 
         builder.instruction(instruction);
 
-        let result = builder.finalize(&mut maxstacksize, Default::default());
+        let result = builder.finalize(&mut maxstacksize, &Default::default());
         assert_eq!(result, Result::Err(LunifyError::StackTooLarge(251)));
     }
 
@@ -431,7 +432,7 @@ mod tests {
         builder.instruction(instruction);
         builder.extra_instruction(instruction);
         builder.extra_instruction(jump_instruction);
-        let (instructions, _) = builder.finalize(&mut 0, Default::default())?;
+        let (instructions, _) = builder.finalize(&mut 0, &Default::default())?;
 
         let lua51::Instruction::Jump { mode, .. } = instructions.last().unwrap() else {
             panic!()
