@@ -80,7 +80,7 @@ impl InstructionBuilder {
         self.contexts.len()
     }
 
-    fn jump_destination(&self, context_index: usize, mut destination: i64, final_offset: i64) -> Result<i64, LunifyError> {
+    fn jump_destination(&self, context_index: usize, mut destination: i64, final_offset: i64) -> i64 {
         let (mut steps, mut offset) = match destination.is_positive() {
             true => (destination + 1, 1),
             false => (destination.abs(), 0),
@@ -98,9 +98,7 @@ impl InstructionBuilder {
             offset += 1;
         }
 
-        destination += final_offset;
-        // TODO: Make sure that Bx is still in bounds.
-        Ok(destination)
+        destination + final_offset
     }
 
     pub(super) fn adjusted_jump_destination(&self, bx: i64) -> Result<usize, LunifyError> {
@@ -109,7 +107,7 @@ impl InstructionBuilder {
         }
 
         let program_counter = self.get_program_counter();
-        let new_bx = self.jump_destination(program_counter - 1, bx, 0)?;
+        let new_bx = self.jump_destination(program_counter - 1, bx, 0);
 
         Ok(((program_counter as i64) + new_bx) as usize)
     }
@@ -128,7 +126,7 @@ impl InstructionBuilder {
             // overflow.
             if let Some(destination) = self.contexts[context_index].instruction.stack_destination() {
                 let new_stack_size = destination.end + 1;
-                match new_stack_size <= settings.lua51.stack_limit {
+                match new_stack_size <= settings.output.stack_limit {
                     true => *maxstacksize = (*maxstacksize).max(new_stack_size as u8),
                     false => return Err(LunifyError::StackTooLarge(new_stack_size)),
                 }
@@ -141,7 +139,7 @@ impl InstructionBuilder {
 
                 match &context.instruction {
                     Instruction::Jump { mode, .. } | Instruction::ForLoop { mode, .. } | Instruction::ForPrep { mode, .. } if !is_fixed => {
-                        Some(self.jump_destination(context_index, mode.0, final_offset)?)
+                        Some(self.jump_destination(context_index, mode.0, final_offset))
                     }
                     _ => None,
                 }
@@ -335,7 +333,7 @@ mod tests {
         builder.extra_instruction(instruction);
 
         let result = builder.jump_destination(builder.get_program_counter() - 1, -1, 0);
-        assert_eq!(result, Ok(-2));
+        assert_eq!(result, -2);
     }
 
     #[test]
@@ -346,7 +344,7 @@ mod tests {
         builder.extra_instruction(instruction);
 
         let result = builder.jump_destination(0, 0, 0);
-        assert_eq!(result, Ok(0));
+        assert_eq!(result, 0);
     }
 
     #[test]
@@ -359,7 +357,7 @@ mod tests {
         builder.instruction(instruction);
 
         let result = builder.jump_destination(0, 1, 0);
-        assert_eq!(result, Ok(1));
+        assert_eq!(result, 1);
     }
 
     #[test]
@@ -371,7 +369,7 @@ mod tests {
         builder.instruction(instruction);
 
         let result = builder.jump_destination(builder.get_program_counter() - 1, -2, 2);
-        assert_eq!(result, Ok(0));
+        assert_eq!(result, 0);
     }
 
     #[test]

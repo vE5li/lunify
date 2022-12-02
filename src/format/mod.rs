@@ -92,7 +92,7 @@ impl Format {
         let is_number_integral = match version {
             LuaVersion::Lua51 => byte_stream.byte()? == 1,
             LuaVersion::Lua50 => {
-                // TODO: double check this
+                // Is there even a way to get this information from Lua 5.0?
                 let value = from_slice!(byte_stream, number_width, endianness, f32, f64);
                 value != 31415926.535897933
             }

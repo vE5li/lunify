@@ -9,7 +9,7 @@ pub(crate) enum Number {
 }
 
 impl Number {
-    pub fn as_integer(self) -> Result<i64, LunifyError> {
+    pub(crate) fn as_integer(self) -> Result<i64, LunifyError> {
         match self {
             Number::Integer(value) => Ok(value),
             Number::Float(value) => match value == value.round() {
@@ -19,7 +19,7 @@ impl Number {
         }
     }
 
-    pub fn as_float(self) -> Result<f64, LunifyError> {
+    pub(crate) fn as_float(self) -> Result<f64, LunifyError> {
         match self {
             Number::Float(value) => Ok(value),
             Number::Integer(value) => match value < f64::MAX as i64 {

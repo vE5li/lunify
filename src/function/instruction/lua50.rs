@@ -1,8 +1,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operant::{Bx, SignedBx, BC};
+use super::operant::{Bx, Opcode, SignedBx, BC};
 use super::{InstructionLayout, OperantType};
+use crate::LunifyError;
 
 /// Lua 5.0 compile constants. The Lua interpreter is compiled with certain
 /// predefined constants that affect how the bytecode is generated. This
@@ -36,7 +37,8 @@ impl<'a> Default for Settings<'a> {
                 OperantType::C(9),
                 OperantType::B(9),
                 OperantType::A(8),
-            ]),
+            ])
+            .unwrap(),
         }
     }
 }

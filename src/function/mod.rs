@@ -1,10 +1,14 @@
 mod builder;
 mod constant;
+mod convert;
 mod instruction;
 mod local;
 mod upcast;
 
+use std::fmt::Debug;
+
 use self::constant::Constant;
+use self::convert::convert;
 use self::instruction::RepresentInstruction;
 pub use self::instruction::{lua50, lua51, InstructionLayout, OperantType, Settings};
 use self::local::LocalVariable;
@@ -13,7 +17,7 @@ use crate::format::LuaVersion;
 use crate::serialization::{ByteStream, ByteWriter};
 use crate::LunifyError;
 
-pub struct Function {
+pub(crate) struct Function {
     source_file: String,
     line_defined: i64,
     last_line_defined: i64,
@@ -29,19 +33,25 @@ pub struct Function {
 }
 
 impl Function {
-    fn get_instructions<T: RepresentInstruction>(
-        byte_stream: &mut ByteStream,
-        settings: &Settings,
-        layout: &InstructionLayout,
-    ) -> Result<Vec<T>, LunifyError> {
+    fn get_instructions<T>(byte_stream: &mut ByteStream, settings: &Settings, layout: &InstructionLayout) -> Result<Vec<T>, LunifyError>
+    where
+        T: RepresentInstruction + Debug,
+    {
         let instruction_count = byte_stream.integer()?;
         let mut instructions = Vec::new();
 
         #[cfg(feature = "debug")]
         println!("instruction_count: {}", instruction_count);
 
-        for _index in 0..instruction_count as usize {
+        #[cfg(feature = "debug")]
+        println!("\n======== Instructions ========");
+
+        for _program_counter in 0..instruction_count as usize {
             let instruction = T::from_byte_stream(byte_stream, settings, layout)?;
+
+            #[cfg(feature = "debug")]
+            println!("[{}] {:?}", _program_counter, instruction);
+
             instructions.push(instruction);
         }
 
@@ -54,7 +64,7 @@ impl Function {
 
         #[cfg(feature = "debug")]
         {
-            println!("constant_count: {}", constant_count);
+            println!("\nconstant_count: {}", constant_count);
             println!("\n======== Constants ========");
         }
 
@@ -75,7 +85,7 @@ impl Function {
                     #[cfg(feature = "debug")]
                     println!("constant[{}] (bool): {:?}", _index, boolean);
 
-                    constants.push(Constant::Boolean(boolean));
+                    constants.push(Constant::Boolean(boolean != 0));
                 }
 
                 3 => {
@@ -185,6 +195,10 @@ impl Function {
         Ok(upvalues)
     }
 
+    fn strip_instructions(instructions: Vec<impl RepresentInstruction>, settings: &Settings) -> Result<Vec<u64>, LunifyError> {
+        instructions.into_iter().map(|instruction| instruction.to_u64(settings)).collect()
+    }
+
     pub(crate) fn from_byte_stream(byte_stream: &mut ByteStream, version: LuaVersion, settings: &Settings) -> Result<Self, LunifyError> {
         let source_file = byte_stream.string()?;
         let line_defined = byte_stream.integer()?;
@@ -219,6 +233,11 @@ impl Function {
             let local_variables = Self::get_local_variables(byte_stream)?;
             let upvalues = Self::get_upvalues(byte_stream)?;
 
+            // Convert from the input Lua 5.1 bytcode to the desired output Lua 5.1
+            // bytecode.
+            let (instructions, line_info) = convert(instructions, line_info, &mut maxstacksize, settings)?;
+            let instructions = Self::strip_instructions(instructions, settings)?;
+
             (instructions, constants, functions, line_info, local_variables, upvalues)
         } else {
             let line_info = Self::get_line_info(byte_stream)?;
@@ -226,11 +245,13 @@ impl Function {
             let upvalues = Self::get_upvalues(byte_stream)?;
             let mut constants = Self::get_constants(byte_stream)?;
             let functions = Self::get_functions(byte_stream, version, settings)?;
-            let instructions = Self::get_instructions::<lua50::Instruction>(byte_stream, settings, &settings.lua50.layout)?;
+            let instructions = Self::get_instructions(byte_stream, settings, &settings.lua50.layout)?;
 
-            // TODO: confirm
-            // TODO: document
-            is_variadic *= 2;
+            if is_variadic != 0 {
+                // Lua 5.1 uses an addition flag called VARARG_ISVARARG for variadic functions
+                // which we need to set, otherwise the function will be invalid.
+                is_variadic |= 2;
+            }
 
             // Upcast instructions from Lua 5.0 to Lua 5.1.
             let (instructions, line_info) = upcast(
@@ -243,10 +264,7 @@ impl Function {
                 settings,
             )?;
 
-            let instructions = instructions
-                .into_iter()
-                .map(|instruction| instruction.to_u64(settings, &settings.lua51.layout))
-                .collect();
+            let instructions = Self::strip_instructions(instructions, settings)?;
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
         };
@@ -293,7 +311,7 @@ impl Function {
 
                 Constant::Boolean(boolean) => {
                     byte_writer.byte(1);
-                    byte_writer.byte(boolean);
+                    byte_writer.byte(boolean as u8);
                 }
 
                 Constant::Number(number) => {
@@ -335,5 +353,30 @@ impl Function {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::function::Function;
+    use crate::serialization::{ByteStream, ByteWriter};
+    use crate::{Format, LunifyError};
+
+    #[test]
+    fn get_constants_invalid() {
+        let format = Format::default();
+        let mut byte_writer = ByteWriter::new(&format);
+
+        // Constant count.
+        byte_writer.integer(1);
+        // Invanid type.
+        byte_writer.byte(5);
+
+        let bytes = byte_writer.finalize();
+        let mut byte_stream = ByteStream::new(&bytes);
+
+        let result = Function::get_constants(&mut byte_stream);
+        assert_eq!(result, Err(LunifyError::InvalidConstantType(5)));
+        assert!(byte_stream.is_empty());
     }
 }

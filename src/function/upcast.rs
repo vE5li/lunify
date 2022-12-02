@@ -13,15 +13,9 @@ pub(crate) fn upcast(
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
     let mut builder = InstructionBuilder::default();
-    let mut constant_manager = ConstantManager { constants };
-
-    #[cfg(feature = "debug")]
-    println!("\n======== Input ========");
+    let mut constant_manager = ConstantManager { settings, constants };
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
-        #[cfg(feature = "debug")]
-        println!("[{}] {:?}", builder.get_program_counter(), instruction);
-
         builder.set_line_number(line_number);
 
         match instruction {
@@ -60,7 +54,7 @@ pub(crate) fn upcast(
 
                 // Create a new constant to hold an identifier to the global that saves the
                 // value in RA+3.
-                let global_constant = constant_manager.create_unique(builder.get_program_counter());
+                let global_constant = constant_manager.create_unique(builder.get_program_counter())?;
 
                 // Instruction to save RA+3.
                 builder.instruction(lua51::Instruction::SetGlobal {
@@ -108,7 +102,7 @@ pub(crate) fn upcast(
 
                     let variable_count = c + 1;
                     let call_base = a + variable_count + 2;
-                    let constant_nil = constant_manager.constant_nil();
+                    let constant_nil = constant_manager.constant_nil()?;
 
                     // Move the iterator function, the table and the index to our call base.
                     builder.instruction(lua51::Instruction::Move {
@@ -153,12 +147,12 @@ pub(crate) fn upcast(
             }
             lua50::Instruction::TForPrep { a, mode } => {
                 // Globals for saving RA+1 and RA+2.
-                let ra1_constant = constant_manager.create_unique(builder.get_program_counter());
-                let ra2_constant = constant_manager.create_unique(builder.get_program_counter() + 1);
+                let ra1_constant = constant_manager.create_unique(builder.get_program_counter())?;
+                let ra2_constant = constant_manager.create_unique(builder.get_program_counter() + 1)?;
 
-                let type_global_constant = constant_manager.constant_for_str("type");
-                let table_global_constant = constant_manager.constant_for_str("table");
-                let next_global_constant = constant_manager.constant_for_str("next");
+                let type_global_constant = constant_manager.constant_for_str("type")?;
+                let table_global_constant = constant_manager.constant_for_str("table")?;
+                let next_global_constant = constant_manager.constant_for_str("next")?;
 
                 // Instructions to save RA+1 and RA+2.
                 builder.instruction(lua51::Instruction::SetGlobal {
@@ -191,8 +185,8 @@ pub(crate) fn upcast(
                     mode: BC(a + 1, a + 2),
                 });
                 // Because of the way the builder works, the jump destination in Bx would be
-                // moved when re-emitting the instructions. Therefore we use
-                // new_bx_fixed so we land on the correct instruction.
+                // moved when re-emitting the instructions. Therefore we fix the jump
+                // destination so we land on the correct instruction.
                 builder.extra_instruction(lua51::Instruction::Jump { a, mode: SignedBx(2) });
                 builder.last_instruction_fixed();
 
@@ -215,7 +209,6 @@ pub(crate) fn upcast(
                     mode: Bx(ra2_constant),
                 });
 
-                // Original instruction.
                 // Technically this Jump could be removed if it lands on the very next
                 // instruction, which will happen it the next instruction is a
                 // TForLoop. But I think it's better to keep this here for
@@ -224,8 +217,8 @@ pub(crate) fn upcast(
             }
             lua50::Instruction::SetList { a, mode: Bx(bx) } | lua50::Instruction::SetListO { a, mode: Bx(bx) } => {
                 let flat_index = bx + 1;
-                let page = flat_index / settings.lua51.fields_per_flush;
-                let offset = flat_index % settings.lua51.fields_per_flush;
+                let page = flat_index / settings.output.fields_per_flush;
+                let offset = flat_index % settings.output.fields_per_flush;
 
                 // In Lua 5.1 SETLISTO and SETLIST became a single instruction. The behaviour
                 // of SETLISTO is used when b is equal to zero.
@@ -235,10 +228,9 @@ pub(crate) fn upcast(
                 };
 
                 // Good case: we are on the first page and the number of entries is smaller than
-                // either LFIELDS_PER_FLUSH, meaning we can just insert a
-                // SETLIST instruction without any modification to
-                // the previous code.
-                if page == 0 && flat_index <= u64::min(settings.lua50.fields_per_flush, settings.lua51.fields_per_flush) {
+                // either LFIELDS_PER_FLUSH, meaning we can just insert a SETLIST instruction
+                // without any modification to the previous code.
+                if page == 0 && flat_index <= u64::min(settings.lua50.fields_per_flush, settings.output.fields_per_flush) {
                     builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, 1) });
                     continue;
                 }
@@ -269,14 +261,14 @@ pub(crate) fn upcast(
                                 let instruction = builder.get_instruction(instruction_index);
 
                                 if let Some(stack_destination) = instruction.stack_destination() {
-                                    if offset + stack_destination.start as i64 - 1 == (a + settings.lua51.fields_per_flush) as i64 {
+                                    if offset + stack_destination.start as i64 - 1 == (a + settings.output.fields_per_flush) as i64 {
                                         // Add a new SETLIST instruction.
                                         builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
                                             a,
-                                            mode: BC(settings.lua51.fields_per_flush, page),
+                                            mode: BC(settings.output.fields_per_flush, page),
                                         });
 
-                                        offset -= settings.lua51.fields_per_flush as i64;
+                                        offset -= settings.output.fields_per_flush as i64;
                                         page += 1;
                                         instruction_index += 1;
                                         continue;
@@ -285,7 +277,7 @@ pub(crate) fn upcast(
 
                                 builder
                                     .get_instruction(instruction_index)
-                                    .move_stack_accesses(a, offset, &settings.lua51);
+                                    .move_stack_accesses(a, offset, &settings.output)?;
                                 instruction_index += 1;
                             }
                         }
@@ -307,7 +299,10 @@ pub(crate) fn upcast(
     // variadic functions we insert instructions that are the equivalent of
     // 'local arg = {...}'. Since we are at the very beginning of our function
     // call, we don't need to worry about saving the stack above our
-    // arguments.
+    // arguments. Lua 5.1 has a flag called VARARG_NEEDSARG that can be set on the
+    // function header to achieve the same result, but it is behind a
+    // compatibility feature flag. Even though that feature should be turned on
+    // most of the time, I chose this approach because it will always work.
     if is_variadic {
         let arg_stack_position = parameter_count as u64;
 
@@ -342,6 +337,8 @@ pub(crate) fn upcast(
 #[cfg(test)]
 mod tests {
     use super::{lua50, lua51, Bx, BC};
+    use crate::function::constant::Constant;
+    use crate::function::instruction::SignedBx;
     use crate::function::upcast;
     use crate::{LunifyError, Settings};
 
@@ -351,12 +348,14 @@ mod tests {
             ..lua50::Settings::default()
         };
 
-        let lua51 = lua51::Settings {
+        let lua51 = lua51::Settings::default();
+
+        let output = lua51::Settings {
             fields_per_flush: 8,
             ..lua51::Settings::default()
         };
 
-        Settings { lua50, lua51 }
+        Settings { lua50, lua51, output }
     }
 
     fn lua50_setlist(size: u64, settings: Settings) -> Vec<lua50::Instruction> {
@@ -378,19 +377,19 @@ mod tests {
         instructions
     }
 
-    fn lua51_setlist(size: u64, settings: Settings) -> Vec<lua51::Instruction> {
+    fn output_setlist(size: u64, settings: Settings) -> Vec<lua51::Instruction> {
         let mut instructions = vec![lua51::Instruction::NewTable { a: 0, mode: BC(0, 0) }];
 
         for index in 0..size {
-            let stack_position = (index % settings.lua51.fields_per_flush) + 1;
-            let page = (index / settings.lua51.fields_per_flush) + 1;
+            let stack_position = (index % settings.output.fields_per_flush) + 1;
+            let page = (index / settings.output.fields_per_flush) + 1;
 
             instructions.push(lua51::Instruction::LoadK {
                 a: stack_position,
                 mode: Bx(0),
             });
 
-            if stack_position == settings.lua51.fields_per_flush || index + 1 == size {
+            if stack_position == settings.output.fields_per_flush || index + 1 == size {
                 instructions.push(lua51::Instruction::SetList {
                     a: 0,
                     mode: BC(stack_position, page),
@@ -416,9 +415,107 @@ mod tests {
             &settings,
         )?;
 
-        let expected = lua51_setlist(count, settings);
+        let expected = output_setlist(count, settings);
 
         assert_eq!(instructions, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_test() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let instructions = vec![lua50::Instruction::Test { a: 0, mode: BC(0, 0) }];
+
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, false, &settings)?;
+        let expected = vec![lua51::Instruction::TestSet { a: 0, mode: BC(0, 0) }];
+
+        assert_eq!(instructions, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_for_loop() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let instructions = vec![lua50::Instruction::ForLoop { a: 0, mode: SignedBx(-1) }];
+
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, false, &settings)?;
+        let expected = vec![
+            lua51::Instruction::GetGlobal { a: 3, mode: Bx(0) },
+            lua51::Instruction::SetGlobal { a: 3, mode: Bx(0) },
+            lua51::Instruction::ForLoop { a: 0, mode: SignedBx(-3) },
+        ];
+
+        assert_eq!(instructions, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_t_for_loop() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let instructions = vec![lua50::Instruction::TForLoop { a: 0, mode: BC(0, 0) }];
+
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, false, &settings)?;
+        let expected = vec![lua51::Instruction::TForLoop { a: 0, mode: BC(0, 1) }];
+
+        assert_eq!(instructions, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_t_for_loop_c_bigger_zero() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let instructions = vec![lua50::Instruction::TForLoop { a: 0, mode: BC(0, 1) }];
+        let mut constants = Vec::new();
+
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut constants, &mut 2, 0, false, &settings)?;
+        let expected = vec![
+            lua51::Instruction::Move { a: 4, mode: BC(0, 0) },
+            lua51::Instruction::Move { a: 5, mode: BC(1, 0) },
+            lua51::Instruction::Move { a: 6, mode: BC(2, 0) },
+            lua51::Instruction::Call { a: 4, mode: BC(3, 3) },
+            lua51::Instruction::Move { a: 3, mode: BC(5, 0) },
+            lua51::Instruction::Move { a: 2, mode: BC(4, 0) },
+            lua51::Instruction::Equals {
+                a: 0,
+                mode: BC::const_c(2, 0, &settings),
+            },
+        ];
+
+        assert_eq!(instructions, expected);
+        assert_eq!(&constants, [Constant::Nil].as_slice());
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_t_for_prep() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let instructions = vec![lua50::Instruction::TForPrep { a: 0, mode: SignedBx(-1) }];
+        let mut constants = Vec::new();
+
+        let (instructions, _) = upcast(instructions, vec![0; 1], &mut constants, &mut 2, 0, false, &settings)?;
+        let expected = vec![
+            lua51::Instruction::SetGlobal { a: 1, mode: Bx(0) },
+            lua51::Instruction::SetGlobal { a: 2, mode: Bx(1) },
+            lua51::Instruction::GetGlobal { a: 1, mode: Bx(2) },
+            lua51::Instruction::Move { a: 2, mode: BC(0, 0) },
+            lua51::Instruction::Call { a: 1, mode: BC(2, 2) },
+            lua51::Instruction::LoadK { a: 2, mode: Bx(3) },
+            lua51::Instruction::Equals { a: 0, mode: BC(1, 2) },
+            lua51::Instruction::Jump { a: 0, mode: SignedBx(2) },
+            lua51::Instruction::SetGlobal { a: 0, mode: Bx(0) },
+            lua51::Instruction::GetGlobal { a: 0, mode: Bx(4) },
+            lua51::Instruction::GetGlobal { a: 1, mode: Bx(0) },
+            lua51::Instruction::GetGlobal { a: 2, mode: Bx(1) },
+            lua51::Instruction::Jump { a: 0, mode: SignedBx(-13) },
+        ];
+        let expected_constants = [
+            Constant::String("type\0".to_owned()),
+            Constant::String("table\0".to_owned()),
+            Constant::String("next\0".to_owned()),
+        ];
+
+        assert_eq!(instructions, expected);
+        assert_eq!(&constants[2..], expected_constants.as_slice());
         Ok(())
     }
 

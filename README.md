@@ -6,7 +6,7 @@
 
 A crate for converting Lua bytecode to different versions and formats.
 
-Currently only Lua 5.0 and Lua 5.1 are supported inputs and Lua 5.0 support is limited.
+Currently Lua 5.0 and Lua 5.1 are supported inputs.
 
 # Example
 

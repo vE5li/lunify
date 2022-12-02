@@ -3,8 +3,9 @@ use std::ops::Range;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operant::{Bx, SignedBx, BC};
+use super::operant::{Bx, Opcode, SignedBx, BC};
 use super::{InstructionLayout, OperantType};
+use crate::LunifyError;
 
 /// Lua 5.1 compile constants. The Lua interpreter is compiled with certain
 /// predefined constants that affect how the bytecode is generated. This
@@ -20,10 +21,8 @@ pub struct Settings<'a> {
     /// Number of elements to put on the stack before inserting a `SETLIST`
     /// instruction (`LFIELDS_PER_FLUSH`).
     pub fields_per_flush: u64,
-    /// Lua binary file signature of the input (`LUA_SIGNATURE`).
-    pub input_binary_signature: &'a str,
-    /// Lua binary file signature of the output (`LUA_SIGNATURE`).
-    pub output_binary_signature: &'a str,
+    /// Lua binary file signature (`LUA_SIGNATURE`).
+    pub binary_signature: &'a str,
     /// Memory layout of instructions inside the Lua bytecode (`SIZE_*`,
     /// `POS_*`).
     pub layout: InstructionLayout,
@@ -34,14 +33,14 @@ impl<'a> Default for Settings<'a> {
         Self {
             fields_per_flush: 50,
             stack_limit: 250,
-            input_binary_signature: "\x1bLua",
-            output_binary_signature: "\x1bLua",
+            binary_signature: "\x1bLua",
             layout: InstructionLayout::from_specification([
                 OperantType::Opcode(6),
                 OperantType::A(8),
                 OperantType::C(9),
                 OperantType::B(9),
-            ]),
+            ])
+            .unwrap(),
         }
     }
 }
@@ -49,6 +48,10 @@ impl<'a> Default for Settings<'a> {
 impl<'a> Settings<'a> {
     pub(crate) fn get_constant_bit(&self) -> u64 {
         1 << (self.layout.b.size - 1)
+    }
+
+    pub(crate) fn get_maximum_constant_index(&self) -> u64 {
+        self.get_constant_bit() - 1
     }
 }
 
@@ -137,44 +140,63 @@ impl Instruction {
         }
     }
 
-    pub(crate) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64, settings: &Settings) {
-        let offset = |position: &mut u64| {
+    pub(crate) fn move_stack_accesses(&mut self, stack_start: u64, offset: i64, settings: &Settings) -> Result<(), LunifyError> {
+        let offset_a = |position: &mut u64| {
             let value = *position;
-            if value >= stack_start && value & settings.get_constant_bit() == 0 {
+            if value >= stack_start {
                 *position = (value as i64 + offset) as u64;
             }
         };
 
+        let offset_constant = |position: &mut u64| {
+            let value = *position;
+            let is_constant = value & settings.get_constant_bit() != 0;
+
+            if value >= stack_start && !is_constant {
+                *position = (value as i64 + offset) as u64;
+
+                // If the stack position is bigger than the maximum constant index, we exeeded
+                // the maximum stack index, meaning our value would now be
+                // interpreted as a constant. At this point we can only return
+                // an error.
+                if *position > settings.get_maximum_constant_index() {
+                    return Err(LunifyError::ValueTooTooBigForOperant);
+                }
+            }
+
+            Ok(())
+        };
+
         match self {
             Instruction::Move { a, mode: BC(b, _) } => {
-                offset(a);
-                offset(b);
+                offset_a(a);
+                offset_constant(b)?;
             }
-            Instruction::LoadK { a, .. } => offset(a),
-            Instruction::LoadBool { a, .. } => offset(a),
+            Instruction::LoadK { a, .. } => offset_a(a),
+            Instruction::LoadBool { a, .. } => offset_a(a),
             Instruction::LoadNil { a, mode: BC(b, _) } => {
-                offset(a);
-                offset(b);
+                offset_a(a);
+                offset_constant(b)?;
             }
-            Instruction::GetUpValue { a, .. } => offset(a),
-            Instruction::GetGlobal { a, .. } => offset(a),
+            Instruction::GetUpValue { a, .. } => offset_a(a),
+            Instruction::GetGlobal { a, .. } => offset_a(a),
             Instruction::GetTable { a, mode: BC(b, c) } => {
-                offset(a);
-                offset(b);
-                offset(c);
+                offset_a(a);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
-            Instruction::SetGlobal { a, .. } => offset(a),
-            Instruction::SetUpValue { a, .. } => offset(a),
+            Instruction::SetGlobal { a, .. } => offset_a(a),
+            Instruction::SetUpValue { a, .. } => offset_a(a),
             Instruction::SetTable { a, mode: BC(b, c) } => {
-                offset(a);
-                offset(b);
-                offset(c);
+                offset_a(a);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
-            Instruction::NewTable { a, .. } => offset(a),
+            Instruction::NewTable { a, .. } => offset_a(a),
             Instruction::_Self { a, mode: BC(b, c) } => {
-                offset(a);
-                offset(b);
-                offset(c);
+                offset_a(a);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
             Instruction::Add { a, mode: BC(b, c) }
             | Instruction::Subtract { a, mode: BC(b, c) }
@@ -182,43 +204,124 @@ impl Instruction {
             | Instruction::Divide { a, mode: BC(b, c) }
             | Instruction::Modulo { a, mode: BC(b, c) }
             | Instruction::Power { a, mode: BC(b, c) } => {
-                offset(a);
-                offset(b);
-                offset(c);
+                offset_a(a);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
             Instruction::Unary { a, mode: BC(b, _) }
             | Instruction::Not { a, mode: BC(b, _) }
             | Instruction::Length { a, mode: BC(b, _) } => {
-                offset(a);
-                offset(b);
+                offset_a(a);
+                offset_constant(b)?;
             }
             Instruction::Concatinate { a, mode: BC(b, c) } => {
-                offset(a);
-                offset(b);
-                offset(c);
+                offset_a(a);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
             Instruction::Jump { .. } => {}
             Instruction::Equals { mode: BC(b, c), .. }
             | Instruction::LessThan { mode: BC(b, c), .. }
             | Instruction::LessEquals { mode: BC(b, c), .. } => {
-                offset(b);
-                offset(c);
+                offset_constant(b)?;
+                offset_constant(c)?;
             }
-            Instruction::Test { a, .. } => offset(a),
+            Instruction::Test { a, .. } => offset_a(a),
             Instruction::TestSet { a, mode: BC(b, _) } => {
-                offset(a);
-                offset(b);
+                offset_a(a);
+                offset_constant(b)?;
             }
-            Instruction::Call { a, .. } => offset(a),
-            Instruction::TailCall { a, .. } => offset(a),
-            Instruction::Return { a, .. } => offset(a),
-            Instruction::ForLoop { a, .. } => offset(a),
-            Instruction::ForPrep { a, .. } => offset(a),
-            Instruction::TForLoop { a, .. } => offset(a),
-            Instruction::SetList { a, .. } => offset(a),
-            Instruction::Close { a, .. } => offset(a),
-            Instruction::Closure { a, .. } => offset(a),
-            Instruction::VarArg { a, .. } => offset(a),
+            Instruction::Call { a, .. } => offset_a(a),
+            Instruction::TailCall { a, .. } => offset_a(a),
+            Instruction::Return { a, .. } => offset_a(a),
+            Instruction::ForLoop { a, .. } => offset_a(a),
+            Instruction::ForPrep { a, .. } => offset_a(a),
+            Instruction::TForLoop { a, .. } => offset_a(a),
+            Instruction::SetList { a, .. } => offset_a(a),
+            Instruction::Close { a, .. } => offset_a(a),
+            Instruction::Closure { a, .. } => offset_a(a),
+            Instruction::VarArg { a, .. } => offset_a(a),
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Instruction, Settings};
+    use crate::function::instruction::BC;
+    use crate::LunifyError;
+
+    #[test]
+    fn settings_get_constant_bit() {
+        let settings = Settings::default();
+        assert_eq!(settings.get_constant_bit(), 1 << 8);
+    }
+
+    #[test]
+    fn settings_get_maximum_constant_index() {
+        let settings = Settings::default();
+        assert_eq!(settings.get_maximum_constant_index(), (1 << 8) - 1);
+    }
+
+    #[test]
+    fn instruction_move_stack_access() -> Result<(), LunifyError> {
+        let settings = Settings::default();
+        let mut instruction = Instruction::GetTable { a: 1, mode: BC(1, 1) };
+
+        instruction.move_stack_accesses(0, 8, &settings)?;
+        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
+            unreachable!();
+        };
+
+        assert_eq!(a, 9);
+        assert_eq!(b, 9);
+        assert_eq!(c, 9);
+        Ok(())
+    }
+
+    #[test]
+    fn instruction_move_stack_access_below() -> Result<(), LunifyError> {
+        let settings = Settings::default();
+        let mut instruction = Instruction::GetTable { a: 9, mode: BC(9, 9) };
+
+        instruction.move_stack_accesses(10, 9, &settings)?;
+        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
+            unreachable!();
+        };
+
+        assert_eq!(a, 9);
+        assert_eq!(b, 9);
+        assert_eq!(c, 9);
+        Ok(())
+    }
+
+    #[test]
+    fn instruction_move_stack_access_constant() -> Result<(), LunifyError> {
+        let settings = Settings::default();
+        let mut instruction = Instruction::GetTable {
+            a: 1,
+            mode: BC(1 | settings.get_constant_bit(), 1 | settings.get_constant_bit()),
+        };
+
+        instruction.move_stack_accesses(0, 8, &settings)?;
+        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
+            unreachable!();
+        };
+
+        assert_eq!(a, 9);
+        assert_eq!(b, 1 | settings.get_constant_bit());
+        assert_eq!(c, 1 | settings.get_constant_bit());
+        Ok(())
+    }
+
+    #[test]
+    fn instruction_move_stack_access_overflow() {
+        let settings = Settings::default();
+        let mut instruction = Instruction::GetTable { a: 1, mode: BC(1, 1) };
+
+        let result = instruction.move_stack_accesses(0, settings.get_maximum_constant_index() as i64, &settings);
+        assert_eq!(result, Err(LunifyError::ValueTooTooBigForOperant));
     }
 }

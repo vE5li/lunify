@@ -21,9 +21,7 @@ use crate::serialization::{ByteStream, ByteWriter};
 pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) -> Result<Vec<u8>, LunifyError> {
     let mut byte_stream = ByteStream::new(input_bytes);
 
-    if !byte_stream.remove_signature(settings.lua50.binary_signature)
-        && !byte_stream.remove_signature(settings.lua51.input_binary_signature)
-    {
+    if !byte_stream.remove_signature(settings.lua50.binary_signature) && !byte_stream.remove_signature(settings.lua51.binary_signature) {
         return Err(LunifyError::IncorrectSignature);
     }
 
@@ -55,7 +53,7 @@ pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) ->
 
     let mut byte_writer = ByteWriter::new(output_format);
 
-    byte_writer.slice(settings.lua51.output_binary_signature.as_bytes());
+    byte_writer.slice(settings.output.binary_signature.as_bytes());
     byte_writer.byte(LuaVersion::Lua51.into());
     output_format.write(&mut byte_writer);
     root_function.write(&mut byte_writer)?;
@@ -190,7 +188,7 @@ mod tests {
 
         let settings = Settings {
             lua51: lua51::Settings {
-                input_binary_signature: "\x1bLul",
+                binary_signature: "\x1bLul",
                 ..Default::default()
             },
             ..Default::default()
