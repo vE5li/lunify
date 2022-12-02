@@ -1,6 +1,7 @@
 # Lunify
 
 [![Tests](https://github.com/ve5li/lunify/workflows/Tests/badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ATests)
+[![Code quality](https://github.com/ve5li/lunify/workflows/Code%20quality/badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ACode+quality)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/lunify.svg)](https://crates.io/crates/lunify)
 
