@@ -145,11 +145,9 @@ impl Instruction {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
-    use super::{Instruction, Settings};
-    use crate::function::instruction::BC;
-    use crate::LunifyError;
+    use super::Settings;
 
     #[test]
     fn settings_get_constant_bit() {
@@ -162,62 +160,4 @@ mod tests {
         let settings = Settings::default();
         assert_eq!(settings.get_maximum_constant_index(), (1 << 8) - 1);
     }
-
-    #[test]
-    fn instruction_move_stack_access() {
-        let settings = Settings::default();
-        let mut instruction = Instruction::GetTable { a: 1, mode: BC(1, 1) };
-
-        instruction.move_stack_accesses(0, 8, &settings);
-        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
-            unreachable!();
-        };
-
-        assert_eq!(a, 9);
-        assert_eq!(b.0, 9);
-        assert_eq!(c.0, 9);
-    }
-
-    #[test]
-    fn instruction_move_stack_access_below() {
-        let settings = Settings::default();
-        let mut instruction = Instruction::GetTable { a: 9, mode: BC(9, 9) };
-
-        instruction.move_stack_accesses(10, 9, &settings);
-        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
-            unreachable!();
-        };
-
-        assert_eq!(a, 9);
-        assert_eq!(b.0, 9);
-        assert_eq!(c.0, 9);
-    }
-
-    #[test]
-    fn instruction_move_stack_access_constant() -> Result<(), LunifyError> {
-        let settings = Settings::default();
-        let mut instruction = Instruction::GetTable {
-            a: 1,
-            mode: BC(1 | settings.get_constant_bit(), 1 | settings.get_constant_bit()),
-        };
-
-        instruction.move_stack_accesses(0, 8, &settings)?;
-        let Instruction::GetTable { a, mode: BC(b, c) } = instruction else {
-            unreachable!();
-        };
-
-        assert_eq!(a, 9);
-        assert_eq!(b.0, 1 | settings.get_constant_bit());
-        assert_eq!(c.0, 1 | settings.get_constant_bit());
-        Ok(())
-    }
-
-    #[test]
-    fn instruction_move_stack_access_overflow() {
-        let settings = Settings::default();
-        let mut instruction = Instruction::GetTable { a: 1, mode: BC(1, 1) };
-
-        let result = instruction.move_stack_accesses(0, settings.get_maximum_constant_index() as i64, &settings);
-        assert_eq!(result, Err(LunifyError::ValueTooTooBigForOperant));
-    }
-}*/
+}

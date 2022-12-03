@@ -147,11 +147,11 @@ mod tests {
         assert_eq!(result.map(|value| value >> 6), expected);
     }
 
-    fn mode_test_offset<T>(mut value: T, offset: i64, expected: T)
+    fn mode_test_offset<T>(mut value: T, base: u64, offset: i64, expected: T)
     where
         T: ModeOffset + Eq + std::fmt::Debug,
     {
-        value.offset(0, offset);
+        value.offset(base, offset);
         assert_eq!(value, expected);
     }
 
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn generic_offset() {
-        mode_test_offset(Generic(4), 5, Generic(4));
+        mode_test_offset(Generic(4), 0, 5, Generic(4));
     }
 
     #[test]
@@ -192,7 +192,12 @@ mod tests {
 
     #[test]
     fn register_offset() {
-        mode_test_offset(Register(4), 5, Register(9));
+        mode_test_offset(Register(4), 0, 5, Register(9));
+    }
+
+    #[test]
+    fn register_offset_below() {
+        mode_test_offset(Register(4), 5, 5, Register(4));
     }
 
     #[test]
@@ -228,11 +233,16 @@ mod tests {
 
     #[test]
     fn constant_register_offset() {
-        mode_test_offset(ConstantRegister(4, false), 5, ConstantRegister(9, false));
+        mode_test_offset(ConstantRegister(4, false), 0, 5, ConstantRegister(9, false));
+    }
+
+    #[test]
+    fn constant_register_offset_below() {
+        mode_test_offset(ConstantRegister(4, false), 5, 5, ConstantRegister(4, false));
     }
 
     #[test]
     fn constant_register_offset_constant() {
-        mode_test_offset(ConstantRegister(4, true), 5, ConstantRegister(4, true));
+        mode_test_offset(ConstantRegister(4, true), 0, 5, ConstantRegister(4, true));
     }
 }
