@@ -31,13 +31,13 @@ impl InstructionContext {
 }
 
 #[derive(Default)]
-pub(super) struct InstructionBuilder {
+pub(super) struct FunctionBuilder {
     contexts: Vec<InstructionContext>,
     line_info: Vec<i64>,
     line_number: i64,
 }
 
-impl InstructionBuilder {
+impl FunctionBuilder {
     pub(super) fn set_line_number(&mut self, line_number: i64) {
         self.line_number = line_number;
     }
@@ -170,7 +170,7 @@ impl InstructionBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::InstructionBuilder;
+    use super::FunctionBuilder;
     use crate::function::builder::InstructionContext;
     use crate::function::instruction::{Bx, SignedBx};
     use crate::{lua51, LunifyError};
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn set_line_number() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
 
         builder.set_line_number(9);
 
@@ -214,7 +214,7 @@ mod tests {
 
     #[test]
     fn line_number_applies() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.set_line_number(9);
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn instruction() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn extra_instruction() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.extra_instruction(instruction);
@@ -247,7 +247,7 @@ mod tests {
 
     #[test]
     fn insert_extra_instruction() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
         let extra_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn remove_instruction() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
         let removed_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn remove_extra_instruction() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
         let removed_instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(10) };
 
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn last_instruction_fixed() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn last_instruction_offset() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::Jump { a: 0, mode: SignedBx(-4) };
 
         builder.instruction(instruction);
@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn jump_destination_negative() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn jump_destination_zero() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.extra_instruction(instruction);
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn jump_destination_positive() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.extra_instruction(instruction);
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn jump_destination_offset_applies() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn adjusted_jump_destination() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn adjusted_jump_destination_positive() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
 
         builder.instruction(instruction);
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn finalize_expands_stack() -> Result<(), LunifyError> {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 10, mode: Bx(1) };
         let mut maxstacksize = 0;
 
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn finalize_expands_stack_too_large() {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 250, mode: Bx(1) };
         let mut maxstacksize = 0;
 
@@ -423,7 +423,7 @@ mod tests {
 
     #[test]
     fn finalize_adjusts_jump_destinations() -> Result<(), LunifyError> {
-        let mut builder = InstructionBuilder::default();
+        let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 0, mode: Bx(1) };
         let jump_instruction = lua51::Instruction::Jump { a: 0, mode: SignedBx(-1) };
 

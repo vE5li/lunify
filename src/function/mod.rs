@@ -9,7 +9,7 @@ use std::fmt::Debug;
 
 use self::constant::Constant;
 use self::convert::convert;
-use self::instruction::RepresentInstruction;
+use self::instruction::LuaInstruction;
 pub use self::instruction::{lua50, lua51, InstructionLayout, OperantType, Settings};
 use self::local::LocalVariable;
 use self::upcast::upcast;
@@ -35,7 +35,7 @@ pub(crate) struct Function {
 impl Function {
     fn get_instructions<T>(byte_stream: &mut ByteStream, settings: &Settings, layout: &InstructionLayout) -> Result<Vec<T>, LunifyError>
     where
-        T: RepresentInstruction + Debug,
+        T: LuaInstruction + Debug,
     {
         let instruction_count = byte_stream.integer()?;
         let mut instructions = Vec::new();
@@ -195,7 +195,7 @@ impl Function {
         Ok(upvalues)
     }
 
-    fn strip_instructions(instructions: Vec<impl RepresentInstruction>, settings: &Settings) -> Result<Vec<u64>, LunifyError> {
+    fn strip_instructions(instructions: Vec<impl LuaInstruction>, settings: &Settings) -> Result<Vec<u64>, LunifyError> {
         instructions.into_iter().map(|instruction| instruction.to_u64(settings)).collect()
     }
 

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{lua50, lua51, LunifyError, Settings};
 
-/// Different possible operants of an instruction.
+/// All possible operants of an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum OperantType {
@@ -19,13 +19,13 @@ pub enum OperantType {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) struct Layout {
+pub(crate) struct OperantLayout {
     pub(crate) size: u64,
     pub(crate) position: u64,
     pub(crate) bit_mask: u64,
 }
 
-impl Layout {
+impl OperantLayout {
     pub(crate) fn new(size: u64, position: u64) -> Self {
         let bit_mask = !0 >> (64 - size);
         Self { size, position, bit_mask }
@@ -50,11 +50,11 @@ impl Layout {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InstructionLayout {
-    pub(crate) opcode: Layout,
-    pub(crate) a: Layout,
-    pub(crate) b: Layout,
-    pub(crate) c: Layout,
-    pub(crate) bx: Layout,
+    pub(crate) opcode: OperantLayout,
+    pub(crate) a: OperantLayout,
+    pub(crate) b: OperantLayout,
+    pub(crate) c: OperantLayout,
+    pub(crate) bx: OperantLayout,
     pub(crate) signed_offset: i64,
 }
 
@@ -89,7 +89,7 @@ impl InstructionLayout {
                         return Err(LunifyError::InvalidInstructionLayout);
                     }
 
-                    opcode = Some(Layout::new(size, offset));
+                    opcode = Some(OperantLayout::new(size, offset));
                     offset += size;
                 }
                 OperantType::A(size) => {
@@ -99,7 +99,7 @@ impl InstructionLayout {
                         return Err(LunifyError::InvalidInstructionLayout);
                     }
 
-                    a = Some(Layout::new(size, offset));
+                    a = Some(OperantLayout::new(size, offset));
                     offset += size;
                 }
                 OperantType::B(size) => {
@@ -109,7 +109,7 @@ impl InstructionLayout {
                         return Err(LunifyError::InvalidInstructionLayout);
                     }
 
-                    b = Some(Layout::new(size, offset));
+                    b = Some(OperantLayout::new(size, offset));
                     offset += size;
                 }
                 OperantType::C(size) => {
@@ -119,7 +119,7 @@ impl InstructionLayout {
                         return Err(LunifyError::InvalidInstructionLayout);
                     }
 
-                    c = Some(Layout::new(size, offset));
+                    c = Some(OperantLayout::new(size, offset));
                     offset += size;
                 }
             }
@@ -137,7 +137,7 @@ impl InstructionLayout {
 
         let bx_size = b.size + c.size;
         let bx_position = u64::min(b.position, c.position);
-        let bx = Layout::new(bx_size, bx_position);
+        let bx = OperantLayout::new(bx_size, bx_position);
         let signed_offset = (!0u64 >> (64 - bx_size + 1)) as i64;
 
         Ok(Self {
@@ -151,39 +151,41 @@ impl InstructionLayout {
     }
 }
 
-pub(crate) trait OperantRead<T> {
-    fn parse(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self;
+pub(crate) trait OperantGet<T> {
+    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self;
 }
 
-pub(crate) trait OperantWrite {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError>;
+pub(crate) trait OperantPut {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError>;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Opcode(pub u64);
 
-impl<T> OperantRead<T> for Opcode {
-    fn parse(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
+impl<T> OperantGet<T> for Opcode {
+    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
         Self(layout.opcode.get(value))
     }
 }
 
-impl OperantWrite for Opcode {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError> {
+impl OperantPut for Opcode {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
         settings.output.layout.opcode.put(self.0)
     }
 }
 
-// A
-impl<T> OperantRead<T> for u64 {
-    fn parse(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
-        layout.a.get(value)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct A(pub u64);
+
+impl<T> OperantGet<T> for A {
+    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
+        Self(layout.a.get(value))
     }
 }
 
-impl OperantWrite for u64 {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError> {
-        settings.output.layout.a.put(self)
+impl OperantPut for A {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
+        settings.output.layout.a.put(self.0)
     }
 }
 
@@ -196,8 +198,8 @@ impl BC {
     }
 }
 
-impl OperantRead<lua50::Instruction> for BC {
-    fn parse(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
+impl OperantGet<lua50::Instruction> for BC {
+    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
         let process = |value: u64| {
             if value >= settings.lua50.stack_limit {
                 let constant_index = value - settings.lua50.stack_limit;
@@ -212,8 +214,8 @@ impl OperantRead<lua50::Instruction> for BC {
     }
 }
 
-impl OperantRead<lua51::Instruction> for BC {
-    fn parse(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
+impl OperantGet<lua51::Instruction> for BC {
+    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
         let lua51_constant_bit = settings.lua51.get_constant_bit();
         let process = |value: u64| {
             if value & lua51_constant_bit != 0 {
@@ -230,8 +232,8 @@ impl OperantRead<lua51::Instruction> for BC {
     }
 }
 
-impl OperantWrite for BC {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError> {
+impl OperantPut for BC {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
         Ok(settings.output.layout.b.put(self.0)? | settings.output.layout.c.put(self.1)?)
     }
 }
@@ -239,14 +241,14 @@ impl OperantWrite for BC {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Bx(pub u64);
 
-impl<T> OperantRead<T> for Bx {
-    fn parse(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
+impl<T> OperantGet<T> for Bx {
+    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
         Self(layout.bx.get(value))
     }
 }
 
-impl OperantWrite for Bx {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError> {
+impl OperantPut for Bx {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
         settings.output.layout.bx.put(self.0)
     }
 }
@@ -254,14 +256,14 @@ impl OperantWrite for Bx {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SignedBx(pub i64);
 
-impl<T> OperantRead<T> for SignedBx {
-    fn parse(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
+impl<T> OperantGet<T> for SignedBx {
+    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
         Self(layout.bx.get(value) as i64 - layout.signed_offset)
     }
 }
 
-impl OperantWrite for SignedBx {
-    fn write(self, settings: &Settings) -> Result<u64, LunifyError> {
+impl OperantPut for SignedBx {
+    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
         settings
             .output
             .layout
@@ -272,14 +274,14 @@ impl OperantWrite for SignedBx {
 
 #[cfg(test)]
 mod tests {
-    use super::{Layout, Opcode, OperantRead, OperantWrite};
+    use super::{Opcode, OperantGet, OperantLayout, OperantPut, A};
     use crate::function::instruction::{Bx, SignedBx, BC};
     use crate::{lua50, lua51, InstructionLayout, LunifyError, OperantType, Settings};
 
     #[test]
     fn layout_new() {
-        let layout = Layout::new(8, 6);
-        let expected = Layout {
+        let layout = OperantLayout::new(8, 6);
+        let expected = OperantLayout {
             size: 8,
             position: 6,
             bit_mask: 0b11111111,
@@ -290,19 +292,19 @@ mod tests {
 
     #[test]
     fn layout_get() {
-        let layout = Layout::new(2, 2);
+        let layout = OperantLayout::new(2, 2);
         assert_eq!(layout.get(0b11100), 0b11);
     }
 
     #[test]
     fn layout_put() {
-        let layout = Layout::new(2, 2);
+        let layout = OperantLayout::new(2, 2);
         assert_eq!(layout.put(0b11), Ok(0b1100));
     }
 
     #[test]
     fn layout_put_out_of_bounds() {
-        let layout = Layout::new(2, 2);
+        let layout = OperantLayout::new(2, 2);
         assert_eq!(layout.put(0b111), Err(LunifyError::ValueTooTooBigForOperant));
     }
 
@@ -358,11 +360,11 @@ mod tests {
 
     fn operant_test<T>(operant: T, value: u64)
     where
-        T: OperantRead<lua51::Instruction> + OperantWrite + Eq + std::fmt::Debug,
+        T: OperantGet<lua51::Instruction> + OperantPut + Eq + std::fmt::Debug,
     {
         let settings = Settings::default();
-        assert_eq!(T::parse(value, &settings, &settings.lua51.layout), operant);
-        assert_eq!(operant.write(&settings), Ok(value));
+        assert_eq!(T::get(value, &settings, &settings.lua51.layout), operant);
+        assert_eq!(operant.put(&settings), Ok(value));
     }
 
     #[test]
@@ -372,7 +374,7 @@ mod tests {
 
     #[test]
     fn operant_a() {
-        operant_test(1, 1 << 6);
+        operant_test(A(1), 1 << 6);
     }
 
     #[test]
@@ -391,7 +393,7 @@ mod tests {
         let value = (1 + settings.lua50.stack_limit) << 6;
         let operant = BC::const_c(0, 1, &settings);
 
-        let bc = <BC as OperantRead<lua50::Instruction>>::parse(value, &settings, &settings.lua50.layout);
+        let bc = <BC as OperantGet<lua50::Instruction>>::get(value, &settings, &settings.lua50.layout);
         assert_eq!(bc, operant);
     }
 
@@ -406,7 +408,7 @@ mod tests {
         let value = (1 | settings.lua51.get_constant_bit()) << 14;
         let operant = BC::const_c(0, 1, &settings);
 
-        let bc = <BC as OperantRead<lua51::Instruction>>::parse(value, &settings, &settings.lua51.layout);
+        let bc = <BC as OperantGet<lua51::Instruction>>::get(value, &settings, &settings.lua51.layout);
         assert_eq!(bc, operant);
     }
 

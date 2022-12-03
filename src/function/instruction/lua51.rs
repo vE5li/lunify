@@ -3,7 +3,7 @@ use std::ops::Range;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operant::{Bx, Opcode, SignedBx, BC};
+use super::operant::{Bx, Opcode, SignedBx, A, BC};
 use super::{InstructionLayout, OperantType};
 use crate::LunifyError;
 
@@ -97,6 +97,10 @@ lua_instructions! {
 }
 
 impl Instruction {
+    /// Get the stack index that a given instruction will move data into.
+    /// SetTable and SetList are technically not moving any data, but rather
+    /// modifying it, but we need this behaviour for detecting the correct
+    /// SetList instruction inside the upcast function.
     pub(crate) fn stack_destination(&self) -> Option<Range<u64>> {
         match *self {
             Instruction::Move { a, .. } => Some(a..a),

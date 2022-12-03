@@ -1,4 +1,4 @@
-use super::builder::InstructionBuilder;
+use super::builder::FunctionBuilder;
 use super::constant::{Constant, ConstantManager};
 use super::instruction::{lua50, lua51, Bx, Settings, SignedBx, BC};
 use crate::LunifyError;
@@ -12,7 +12,7 @@ pub(crate) fn upcast(
     is_variadic: bool,
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
-    let mut builder = InstructionBuilder::default();
+    let mut builder = FunctionBuilder::default();
     let mut constant_manager = ConstantManager { settings, constants };
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {

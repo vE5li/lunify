@@ -1,4 +1,4 @@
-use super::builder::InstructionBuilder;
+use super::builder::FunctionBuilder;
 use crate::function::instruction::BC;
 use crate::{lua51, LunifyError, Settings};
 
@@ -14,7 +14,7 @@ pub(crate) fn convert(
         return Ok((instructions, line_info));
     }
 
-    let mut builder = InstructionBuilder::default();
+    let mut builder = FunctionBuilder::default();
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
         #[cfg(feature = "debug")]
