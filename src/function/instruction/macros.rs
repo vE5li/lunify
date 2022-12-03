@@ -1,12 +1,12 @@
 macro_rules! lua_instructions {
-    ($($vname:ident ( $mode:ident ),)*) => {
+    ($($vname:ident ( $mode:ty, $move_a:literal ),)*) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub(crate) enum Instruction {
             $($vname { a: u64, mode: $mode },)*
         }
 
         impl super::LuaInstruction for Instruction {
-            // Needed because the compiler sees index as never being read for some reason.
+            // Needed because the compiler sees these functions as never being used and index as never being read.
             #[allow(dead_code, unused_assignments)]
             fn from_byte_stream(byte_stream: &mut crate::ByteStream, settings: &super::settings::Settings, layout: &InstructionLayout) -> Result<Self, crate::LunifyError> {
                 use super::operant::OperantGet;
@@ -24,6 +24,23 @@ macro_rules! lua_instructions {
                 )*
 
                 Err(crate::LunifyError::InvalidOpcode(opcode.0))
+            }
+
+            #[allow(dead_code)]
+            fn move_stack_accesses(&mut self, stack_start: u64, offset: i64) {
+                use super::operant::OperantOffset;
+
+                match self {
+                    $(Self::$vname { a, mode } => {
+                        if $move_a {
+                            let value = *a;
+                            if value >= stack_start {
+                                *a = (value as i64 + offset) as u64;
+                            }
+                        }
+                        mode.offset(stack_start, offset);
+                    },)*
+                }
             }
 
             #[allow(dead_code, unused_assignments)]

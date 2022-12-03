@@ -28,7 +28,7 @@ impl<'a> ConstantManager<'a> {
         let mut index = 0;
 
         let constant = loop {
-            let constant_name = format!("__%lunify%__temp{}_{}\0", program_counter, index);
+            let constant_name = format!("__%lunify%__temp{program_counter}_{index}\0");
             let constant = Constant::String(constant_name);
 
             if !self.constants.contains(&constant) {
@@ -43,7 +43,7 @@ impl<'a> ConstantManager<'a> {
     }
 
     pub(super) fn constant_for_str(&mut self, constant_str: &'static str) -> Result<u64, LunifyError> {
-        let zero_terminated = format!("{}\0", constant_str);
+        let zero_terminated = format!("{constant_str}\0");
 
         // If the constant already exists we don't need to add it again.
         let matches = |constant: &_| matches!(constant, Constant::String(string) if string == zero_terminated.as_str());

@@ -1,5 +1,5 @@
 use super::builder::FunctionBuilder;
-use crate::function::instruction::BC;
+use crate::function::instruction::{Generic, LuaInstruction, BC};
 use crate::{lua51, LunifyError, Settings};
 
 pub(crate) fn convert(
@@ -24,12 +24,12 @@ pub(crate) fn convert(
 
         match instruction {
             lua51::Instruction::SetList { a, mode: BC(b, c) } => {
-                let flat_index = b + (settings.lua51.fields_per_flush * (c - 1));
+                let flat_index = b.0 + (settings.lua51.fields_per_flush * (c.0 - 1));
                 let page = flat_index / settings.output.fields_per_flush;
                 let offset = flat_index % settings.output.fields_per_flush;
 
                 // If b was 0 before, we need to keep it that way.
-                let b = match b {
+                let b = match b.0 {
                     0 => 0,
                     _ => offset,
                 };
@@ -38,7 +38,10 @@ pub(crate) fn convert(
                 // either LFIELDS_PER_FLUSH, meaning we can just insert a SETLIST instruction
                 // without any modification to the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua51.fields_per_flush, settings.output.fields_per_flush) {
-                    builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, 1) });
+                    builder.instruction(lua51::Instruction::SetList {
+                        a,
+                        mode: BC(Generic(b), Generic(1)),
+                    });
                     continue;
                 }
 
@@ -56,8 +59,8 @@ pub(crate) fn convert(
                     if matches!(instruction.stack_destination(), Some(destination) if destination.start == a) || instruction_index == 0 {
                         // Should either be NEWTABLE or SETLIST.
                         if let lua51::Instruction::SetList { mode: BC(b, c), .. } = *instruction {
-                            let mut offset = b as i64;
-                            let mut page = c;
+                            let mut offset = b.0 as i64;
+                            let mut page = c.0;
 
                             // Remove the SETLIST instruction.
                             builder.remove_instruction(instruction_index);
@@ -72,7 +75,7 @@ pub(crate) fn convert(
                                         // Add a new SETLIST instruction.
                                         builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
                                             a,
-                                            mode: BC(settings.output.fields_per_flush, page),
+                                            mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
                                         });
 
                                         offset -= settings.output.fields_per_flush as i64;
@@ -82,9 +85,7 @@ pub(crate) fn convert(
                                     }
                                 }
 
-                                builder
-                                    .get_instruction(instruction_index)
-                                    .move_stack_accesses(a, offset, &settings.output)?;
+                                builder.get_instruction(instruction_index).move_stack_accesses(a, offset);
                                 instruction_index += 1;
                             }
                         }
@@ -94,7 +95,10 @@ pub(crate) fn convert(
                 }
 
                 // Append the original instruction.
-                builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, page + 1) });
+                builder.instruction(lua51::Instruction::SetList {
+                    a,
+                    mode: BC(Generic(b), Generic(page + 1)),
+                });
             }
             instruction => builder.instruction(instruction),
         };
@@ -107,7 +111,7 @@ pub(crate) fn convert(
 mod tests {
     use super::{lua51, BC};
     use crate::function::convert;
-    use crate::function::instruction::Bx;
+    use crate::function::instruction::{Bx, Generic, Unused};
     use crate::{lua50, LunifyError, Settings};
 
     fn test_settings() -> Settings<'static> {
@@ -127,7 +131,10 @@ mod tests {
     }
 
     fn lua51_setlist(size: u64, settings: Settings) -> Vec<lua51::Instruction> {
-        let mut instructions = vec![lua51::Instruction::NewTable { a: 0, mode: BC(0, 0) }];
+        let mut instructions = vec![lua51::Instruction::NewTable {
+            a: 0,
+            mode: BC(Unused, Unused),
+        }];
 
         for index in 0..size {
             let stack_position = (index % settings.lua51.fields_per_flush) + 1;
@@ -141,7 +148,7 @@ mod tests {
             if stack_position == settings.lua51.fields_per_flush || index + 1 == size {
                 instructions.push(lua51::Instruction::SetList {
                     a: 0,
-                    mode: BC(stack_position, page),
+                    mode: BC(Generic(stack_position), Generic(page)),
                 });
             }
         }
@@ -150,7 +157,10 @@ mod tests {
     }
 
     fn output_setlist(size: u64, settings: Settings) -> Vec<lua51::Instruction> {
-        let mut instructions = vec![lua51::Instruction::NewTable { a: 0, mode: BC(0, 0) }];
+        let mut instructions = vec![lua51::Instruction::NewTable {
+            a: 0,
+            mode: BC(Unused, Unused),
+        }];
 
         for index in 0..size {
             let stack_position = (index % settings.output.fields_per_flush) + 1;
@@ -164,7 +174,7 @@ mod tests {
             if stack_position == settings.output.fields_per_flush || index + 1 == size {
                 instructions.push(lua51::Instruction::SetList {
                     a: 0,
-                    mode: BC(stack_position, page),
+                    mode: BC(Generic(stack_position), Generic(page)),
                 });
             }
         }
@@ -209,16 +219,25 @@ mod tests {
         let settings = test_settings();
         let instructions = vec![
             lua51::Instruction::LoadK { a: 5, mode: Bx(0) },
-            lua51::Instruction::SetList { a: 0, mode: BC(5, 1) },
+            lua51::Instruction::SetList {
+                a: 0,
+                mode: BC(Generic(5), Generic(1)),
+            },
             lua51::Instruction::LoadK { a: 1, mode: Bx(0) },
-            lua51::Instruction::SetList { a: 0, mode: BC(1, 2) },
+            lua51::Instruction::SetList {
+                a: 0,
+                mode: BC(Generic(1), Generic(2)),
+            },
         ];
 
         let (instructions, _) = convert(instructions, vec![0; 12], &mut 2, &settings)?;
         let expected = vec![
             lua51::Instruction::LoadK { a: 5, mode: Bx(0) },
             lua51::Instruction::LoadK { a: 6, mode: Bx(0) },
-            lua51::Instruction::SetList { a: 0, mode: BC(6, 1) },
+            lua51::Instruction::SetList {
+                a: 0,
+                mode: BC(Generic(6), Generic(1)),
+            },
         ];
 
         assert_eq!(instructions, expected);

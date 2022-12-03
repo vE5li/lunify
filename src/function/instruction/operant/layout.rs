@@ -1,21 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{lua50, lua51, LunifyError, Settings};
-
-/// All possible operants of an instruction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum OperantType {
-    /// Size of the Opcode (`SIZE_O`P).
-    Opcode(u64),
-    /// Size of the A operant (`SIZE_A`).
-    A(u64),
-    /// Size of the B operant (`SIZE_B`).
-    B(u64),
-    /// Size of the C operant (`SIZE_C`).
-    C(u64),
-}
+use crate::LunifyError;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -44,6 +30,20 @@ impl OperantLayout {
 
         Ok((value & self.bit_mask) << self.position)
     }
+}
+
+/// All possible operants of an instruction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum OperantType {
+    /// Size of the Opcode (`SIZE_O`P).
+    Opcode(u64),
+    /// Size of the A operant (`SIZE_A`).
+    A(u64),
+    /// Size of the B operant (`SIZE_B`).
+    B(u64),
+    /// Size of the C operant (`SIZE_C`).
+    C(u64),
 }
 
 /// Memory layout of instructions inside the Lua bytecode (`SIZE_*`, `POS_*`).
@@ -151,132 +151,10 @@ impl InstructionLayout {
     }
 }
 
-pub(crate) trait OperantGet<T> {
-    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self;
-}
-
-pub(crate) trait OperantPut {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError>;
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Opcode(pub u64);
-
-impl<T> OperantGet<T> for Opcode {
-    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
-        Self(layout.opcode.get(value))
-    }
-}
-
-impl OperantPut for Opcode {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
-        settings.output.layout.opcode.put(self.0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct A(pub u64);
-
-impl<T> OperantGet<T> for A {
-    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
-        Self(layout.a.get(value))
-    }
-}
-
-impl OperantPut for A {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
-        settings.output.layout.a.put(self.0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct BC(pub u64, pub u64);
-
-impl BC {
-    pub fn const_c(b: u64, c: u64, settings: &Settings) -> Self {
-        Self(b, c | settings.output.get_constant_bit())
-    }
-}
-
-impl OperantGet<lua50::Instruction> for BC {
-    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
-        let process = |value: u64| {
-            if value >= settings.lua50.stack_limit {
-                let constant_index = value - settings.lua50.stack_limit;
-                return constant_index | settings.output.get_constant_bit();
-            }
-            value
-        };
-
-        let b = process(layout.b.get(value));
-        let c = process(layout.c.get(value));
-        Self(b, c)
-    }
-}
-
-impl OperantGet<lua51::Instruction> for BC {
-    fn get(value: u64, settings: &Settings, layout: &InstructionLayout) -> Self {
-        let lua51_constant_bit = settings.lua51.get_constant_bit();
-        let process = |value: u64| {
-            if value & lua51_constant_bit != 0 {
-                // Clear the Lua 5.1 constant bit.
-                let constant_index = value ^ lua51_constant_bit;
-                return constant_index | settings.output.get_constant_bit();
-            }
-            value
-        };
-
-        let b = process(layout.b.get(value));
-        let c = process(layout.c.get(value));
-        Self(b, c)
-    }
-}
-
-impl OperantPut for BC {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
-        Ok(settings.output.layout.b.put(self.0)? | settings.output.layout.c.put(self.1)?)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Bx(pub u64);
-
-impl<T> OperantGet<T> for Bx {
-    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
-        Self(layout.bx.get(value))
-    }
-}
-
-impl OperantPut for Bx {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
-        settings.output.layout.bx.put(self.0)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct SignedBx(pub i64);
-
-impl<T> OperantGet<T> for SignedBx {
-    fn get(value: u64, _settings: &Settings, layout: &InstructionLayout) -> Self {
-        Self(layout.bx.get(value) as i64 - layout.signed_offset)
-    }
-}
-
-impl OperantPut for SignedBx {
-    fn put(self, settings: &Settings) -> Result<u64, LunifyError> {
-        settings
-            .output
-            .layout
-            .bx
-            .put((self.0 + settings.output.layout.signed_offset) as u64)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Opcode, OperantGet, OperantLayout, OperantPut, A};
-    use crate::function::instruction::{Bx, SignedBx, BC};
-    use crate::{lua50, lua51, InstructionLayout, LunifyError, OperantType, Settings};
+    use crate::function::instruction::operant::OperantLayout;
+    use crate::{InstructionLayout, LunifyError, OperantType};
 
     #[test]
     fn layout_new() {
@@ -356,76 +234,5 @@ mod tests {
         let result =
             InstructionLayout::from_specification([OperantType::Opcode(6), OperantType::C(9), OperantType::A(9), OperantType::B(8)]);
         assert_eq!(result, Err(LunifyError::InvalidInstructionLayout));
-    }
-
-    fn operant_test<T>(operant: T, value: u64)
-    where
-        T: OperantGet<lua51::Instruction> + OperantPut + Eq + std::fmt::Debug,
-    {
-        let settings = Settings::default();
-        assert_eq!(T::get(value, &settings, &settings.lua51.layout), operant);
-        assert_eq!(operant.put(&settings), Ok(value));
-    }
-
-    #[test]
-    fn operant_opcode() {
-        operant_test(Opcode(1), 1);
-    }
-
-    #[test]
-    fn operant_a() {
-        operant_test(A(1), 1 << 6);
-    }
-
-    #[test]
-    fn operant_b() {
-        operant_test(BC(1, 0), 1 << 23);
-    }
-
-    #[test]
-    fn operant_c() {
-        operant_test(BC(0, 1), 1 << 14);
-    }
-
-    #[test]
-    fn operant_c_const_lua50() {
-        let settings = Settings::default();
-        let value = (1 + settings.lua50.stack_limit) << 6;
-        let operant = BC::const_c(0, 1, &settings);
-
-        let bc = <BC as OperantGet<lua50::Instruction>>::get(value, &settings, &settings.lua50.layout);
-        assert_eq!(bc, operant);
-    }
-
-    #[test]
-    fn operant_c_const_lua51() {
-        let mut settings = Settings::default();
-        // Set the size of B for Lua 5.1 to something smaller than the size of B for
-        // output, so we can test that the constant bit is cleared and set
-        // correctly.
-        settings.lua51.layout.b.size = 5;
-
-        let value = (1 | settings.lua51.get_constant_bit()) << 14;
-        let operant = BC::const_c(0, 1, &settings);
-
-        let bc = <BC as OperantGet<lua51::Instruction>>::get(value, &settings, &settings.lua51.layout);
-        assert_eq!(bc, operant);
-    }
-
-    #[test]
-    fn operant_bc_new_const_c() {
-        let settings = Settings::default();
-        let bc = BC::const_c(0, 1, &settings);
-        assert_eq!(bc.1, 1 | settings.output.get_constant_bit());
-    }
-
-    #[test]
-    fn operant_bx() {
-        operant_test(Bx(1), 1 << 14);
-    }
-
-    #[test]
-    fn operant_signed_bx() {
-        operant_test(SignedBx(1), 131072 << 14);
     }
 }

@@ -1,6 +1,6 @@
 use super::builder::FunctionBuilder;
 use super::constant::{Constant, ConstantManager};
-use super::instruction::{lua50, lua51, Bx, Settings, SignedBx, BC};
+use super::instruction::{lua50, lua51, Bx, ConstantRegister, Generic, LuaInstruction, Register, Settings, SignedBx, Unused, BC};
 use crate::LunifyError;
 
 pub(crate) fn upcast(
@@ -43,8 +43,10 @@ pub(crate) fn upcast(
             lua50::Instruction::Equals { a, mode } => builder.instruction(lua51::Instruction::Equals { a, mode }),
             lua50::Instruction::LessThan { a, mode } => builder.instruction(lua51::Instruction::LessThan { a, mode }),
             lua50::Instruction::LessEquals { a, mode } => builder.instruction(lua51::Instruction::LessEquals { a, mode }),
-            // Test maps to TestSet.
-            lua50::Instruction::Test { a, mode } => builder.instruction(lua51::Instruction::TestSet { a, mode }),
+            lua50::Instruction::Test { a, mode: BC(b, c) } => builder.instruction(lua51::Instruction::TestSet {
+                a,
+                mode: BC(ConstantRegister(b.0, false), c),
+            }),
             lua50::Instruction::Call { a, mode } => builder.instruction(lua51::Instruction::Call { a, mode }),
             lua50::Instruction::TailCall { a, mode } => builder.instruction(lua51::Instruction::TailCall { a, mode }),
             lua50::Instruction::Return { a, mode } => builder.instruction(lua51::Instruction::Return { a, mode }),
@@ -86,42 +88,45 @@ pub(crate) fn upcast(
                     mode: Bx(global_constant),
                 });
             }
-            lua50::Instruction::TForLoop { a, mode: BC(b, c) } => {
+            lua50::Instruction::TForLoop { a, mode: BC(_, c) } => {
                 // The TFORLOOP instruction in Lua 5.0 can move multiple results to the stack
                 // below the callbase, but Lua 5.1 can only move one result and
                 // the subsequent moves are done by MOVE instructions.
 
                 // If the argument count is 1 (argument count = c - 1), we can just map directly
                 // to Lua 5.1 TFORLOOP.
-                if c == 0 {
-                    builder.instruction(lua51::Instruction::TForLoop { a, mode: BC(b, c + 1) });
+                if c.0 == 0 {
+                    builder.instruction(lua51::Instruction::TForLoop {
+                        a,
+                        mode: BC(Unused, Generic(c.0 + 1)),
+                    });
                 } else {
                     // In order to mimic the Lua 5.0 TFORLOOP instruction we can't insert MOVE
                     // instructions after the TFORLOOP jump like Lua 5.1 does, because that won't
                     // move our results to the stack after the last iteration.
 
-                    let variable_count = c + 1;
+                    let variable_count = c.0 + 1;
                     let call_base = a + variable_count + 2;
                     let constant_nil = constant_manager.constant_nil()?;
 
                     // Move the iterator function, the table and the index to our call base.
                     builder.instruction(lua51::Instruction::Move {
                         a: call_base,
-                        mode: BC(a, 0),
+                        mode: BC(Register(a), Unused),
                     });
                     builder.extra_instruction(lua51::Instruction::Move {
                         a: call_base + 1,
-                        mode: BC(a + 1, 0),
+                        mode: BC(Register(a + 1), Unused),
                     });
                     builder.extra_instruction(lua51::Instruction::Move {
                         a: call_base + 2,
-                        mode: BC(a + 2, 0),
+                        mode: BC(Register(a + 2), Unused),
                     });
 
                     // Call to iterator function (e.g. ipairs).
                     builder.extra_instruction(lua51::Instruction::Call {
                         a: call_base,
-                        mode: BC(3, variable_count + 1),
+                        mode: BC(Generic(3), Generic(variable_count + 1)),
                     });
 
                     // Move the results of our call back to our control variables. After the call,
@@ -130,7 +135,7 @@ pub(crate) fn upcast(
                     for offset in (0..variable_count).rev() {
                         builder.extra_instruction(lua51::Instruction::Move {
                             a: a + offset + 2,
-                            mode: BC(call_base + offset, 0),
+                            mode: BC(Register(call_base + offset), Unused),
                         });
                     }
 
@@ -141,7 +146,7 @@ pub(crate) fn upcast(
                     // of the jump. That JMP instruction doesn't need any modification here.
                     builder.extra_instruction(lua51::Instruction::Equals {
                         a: 0,
-                        mode: BC::const_c(a + 2, constant_nil, settings),
+                        mode: BC(ConstantRegister(a + 2, false), ConstantRegister(constant_nil, true)),
                     });
                 }
             }
@@ -169,8 +174,14 @@ pub(crate) fn upcast(
                     a: a + 1,
                     mode: Bx(type_global_constant),
                 });
-                builder.extra_instruction(lua51::Instruction::Move { a: a + 2, mode: BC(a, 0) });
-                builder.extra_instruction(lua51::Instruction::Call { a: a + 1, mode: BC(2, 2) });
+                builder.extra_instruction(lua51::Instruction::Move {
+                    a: a + 2,
+                    mode: BC(Register(a), Unused),
+                });
+                builder.extra_instruction(lua51::Instruction::Call {
+                    a: a + 1,
+                    mode: BC(Generic(2), Generic(2)),
+                });
 
                 // Load the string "table" to compare the result of the previous type to.
                 builder.extra_instruction(lua51::Instruction::LoadK {
@@ -182,7 +193,7 @@ pub(crate) fn upcast(
                 // instruction.
                 builder.extra_instruction(lua51::Instruction::Equals {
                     a: 0,
-                    mode: BC(a + 1, a + 2),
+                    mode: BC(ConstantRegister(a + 1, false), ConstantRegister(a + 2, false)),
                 });
                 // Because of the way the builder works, the jump destination in Bx would be
                 // moved when re-emitting the instructions. Therefore we fix the jump
@@ -231,7 +242,10 @@ pub(crate) fn upcast(
                 // either LFIELDS_PER_FLUSH, meaning we can just insert a SETLIST instruction
                 // without any modification to the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua50.fields_per_flush, settings.output.fields_per_flush) {
-                    builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, 1) });
+                    builder.instruction(lua51::Instruction::SetList {
+                        a,
+                        mode: BC(Generic(b), Generic(1)),
+                    });
                     continue;
                 }
 
@@ -249,8 +263,8 @@ pub(crate) fn upcast(
                     if matches!(instruction.stack_destination(), Some(destination) if destination.start == a) || instruction_index == 0 {
                         // Should either be NEWTABLE or SETLIST.
                         if let lua51::Instruction::SetList { mode: BC(b, c), .. } = *instruction {
-                            let mut offset = b as i64;
-                            let mut page = c;
+                            let mut offset = b.0 as i64;
+                            let mut page = c.0;
 
                             // Remove the SETLIST instruction.
                             builder.remove_instruction(instruction_index);
@@ -265,7 +279,7 @@ pub(crate) fn upcast(
                                         // Add a new SETLIST instruction.
                                         builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
                                             a,
-                                            mode: BC(settings.output.fields_per_flush, page),
+                                            mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
                                         });
 
                                         offset -= settings.output.fields_per_flush as i64;
@@ -275,9 +289,7 @@ pub(crate) fn upcast(
                                     }
                                 }
 
-                                builder
-                                    .get_instruction(instruction_index)
-                                    .move_stack_accesses(a, offset, &settings.output)?;
+                                builder.get_instruction(instruction_index).move_stack_accesses(a, offset);
                                 instruction_index += 1;
                             }
                         }
@@ -287,7 +299,10 @@ pub(crate) fn upcast(
                 }
 
                 // Append the original instruction.
-                builder.instruction(lua51::Instruction::SetList { a, mode: BC(b, page + 1) });
+                builder.instruction(lua51::Instruction::SetList {
+                    a,
+                    mode: BC(Generic(b), Generic(page + 1)),
+                });
             }
             lua50::Instruction::Close { a, mode } => builder.instruction(lua51::Instruction::Close { a, mode }),
             lua50::Instruction::Closure { a, mode } => builder.instruction(lua51::Instruction::Closure { a, mode }),
@@ -309,25 +324,25 @@ pub(crate) fn upcast(
         // Create a new empty table to hold our arguments.
         builder.insert_extra_instruction(0, lua51::Instruction::NewTable {
             a: arg_stack_position + 1,
-            mode: BC(0, 0),
+            mode: BC(Unused, Unused),
         });
 
         // Push all variadic arguments onto the stack.
         builder.insert_extra_instruction(1, lua51::Instruction::VarArg {
             a: arg_stack_position + 2,
-            mode: BC(0, 0),
+            mode: BC(Generic(0), Unused),
         });
 
         // Add all values from the stack to the table.
         builder.insert_extra_instruction(2, lua51::Instruction::SetList {
             a: arg_stack_position + 1,
-            mode: BC(0, 1),
+            mode: BC(Generic(0), Generic(1)),
         });
 
         // Move the table to the location of the argument.
         builder.insert_extra_instruction(3, lua51::Instruction::Move {
             a: arg_stack_position,
-            mode: BC(arg_stack_position + 1, 0),
+            mode: BC(Register(arg_stack_position + 1), Unused),
         });
     }
 
@@ -338,7 +353,7 @@ pub(crate) fn upcast(
 mod tests {
     use super::{lua50, lua51, Bx, BC};
     use crate::function::constant::Constant;
-    use crate::function::instruction::SignedBx;
+    use crate::function::instruction::{ConstantRegister, Generic, Register, SignedBx, Unused};
     use crate::function::upcast;
     use crate::{LunifyError, Settings};
 
@@ -359,7 +374,10 @@ mod tests {
     }
 
     fn lua50_setlist(size: u64, settings: Settings) -> Vec<lua50::Instruction> {
-        let mut instructions = vec![lua50::Instruction::NewTable { a: 0, mode: BC(0, 0) }];
+        let mut instructions = vec![lua50::Instruction::NewTable {
+            a: 0,
+            mode: BC(Unused, Unused),
+        }];
 
         for index in 0..size {
             let stack_position = (index % settings.lua50.fields_per_flush) + 1;
@@ -378,7 +396,10 @@ mod tests {
     }
 
     fn output_setlist(size: u64, settings: Settings) -> Vec<lua51::Instruction> {
-        let mut instructions = vec![lua51::Instruction::NewTable { a: 0, mode: BC(0, 0) }];
+        let mut instructions = vec![lua51::Instruction::NewTable {
+            a: 0,
+            mode: BC(Unused, Unused),
+        }];
 
         for index in 0..size {
             let stack_position = (index % settings.output.fields_per_flush) + 1;
@@ -392,7 +413,7 @@ mod tests {
             if stack_position == settings.output.fields_per_flush || index + 1 == size {
                 instructions.push(lua51::Instruction::SetList {
                     a: 0,
-                    mode: BC(stack_position, page),
+                    mode: BC(Generic(stack_position), Generic(page)),
                 });
             }
         }
@@ -424,10 +445,16 @@ mod tests {
     #[test]
     fn upcast_test() -> Result<(), LunifyError> {
         let settings = test_settings();
-        let instructions = vec![lua50::Instruction::Test { a: 0, mode: BC(0, 0) }];
+        let instructions = vec![lua50::Instruction::Test {
+            a: 0,
+            mode: BC(Register(0), Generic(0)),
+        }];
 
         let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, false, &settings)?;
-        let expected = vec![lua51::Instruction::TestSet { a: 0, mode: BC(0, 0) }];
+        let expected = vec![lua51::Instruction::TestSet {
+            a: 0,
+            mode: BC(ConstantRegister(0, false), Generic(0)),
+        }];
 
         assert_eq!(instructions, expected);
         Ok(())
@@ -452,10 +479,16 @@ mod tests {
     #[test]
     fn upcast_t_for_loop() -> Result<(), LunifyError> {
         let settings = test_settings();
-        let instructions = vec![lua50::Instruction::TForLoop { a: 0, mode: BC(0, 0) }];
+        let instructions = vec![lua50::Instruction::TForLoop {
+            a: 0,
+            mode: BC(Unused, Generic(0)),
+        }];
 
         let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, false, &settings)?;
-        let expected = vec![lua51::Instruction::TForLoop { a: 0, mode: BC(0, 1) }];
+        let expected = vec![lua51::Instruction::TForLoop {
+            a: 0,
+            mode: BC(Unused, Generic(1)),
+        }];
 
         assert_eq!(instructions, expected);
         Ok(())
@@ -464,20 +497,41 @@ mod tests {
     #[test]
     fn upcast_t_for_loop_c_bigger_zero() -> Result<(), LunifyError> {
         let settings = test_settings();
-        let instructions = vec![lua50::Instruction::TForLoop { a: 0, mode: BC(0, 1) }];
+        let instructions = vec![lua50::Instruction::TForLoop {
+            a: 0,
+            mode: BC(Unused, Generic(1)),
+        }];
         let mut constants = Vec::new();
 
         let (instructions, _) = upcast(instructions, vec![0; 1], &mut constants, &mut 2, 0, false, &settings)?;
         let expected = vec![
-            lua51::Instruction::Move { a: 4, mode: BC(0, 0) },
-            lua51::Instruction::Move { a: 5, mode: BC(1, 0) },
-            lua51::Instruction::Move { a: 6, mode: BC(2, 0) },
-            lua51::Instruction::Call { a: 4, mode: BC(3, 3) },
-            lua51::Instruction::Move { a: 3, mode: BC(5, 0) },
-            lua51::Instruction::Move { a: 2, mode: BC(4, 0) },
+            lua51::Instruction::Move {
+                a: 4,
+                mode: BC(Register(0), Unused),
+            },
+            lua51::Instruction::Move {
+                a: 5,
+                mode: BC(Register(1), Unused),
+            },
+            lua51::Instruction::Move {
+                a: 6,
+                mode: BC(Register(2), Unused),
+            },
+            lua51::Instruction::Call {
+                a: 4,
+                mode: BC(Generic(3), Generic(3)),
+            },
+            lua51::Instruction::Move {
+                a: 3,
+                mode: BC(Register(5), Unused),
+            },
+            lua51::Instruction::Move {
+                a: 2,
+                mode: BC(Register(4), Unused),
+            },
             lua51::Instruction::Equals {
                 a: 0,
-                mode: BC::const_c(2, 0, &settings),
+                mode: BC(ConstantRegister(2, false), ConstantRegister(0, true)),
             },
         ];
 
@@ -497,10 +551,19 @@ mod tests {
             lua51::Instruction::SetGlobal { a: 1, mode: Bx(0) },
             lua51::Instruction::SetGlobal { a: 2, mode: Bx(1) },
             lua51::Instruction::GetGlobal { a: 1, mode: Bx(2) },
-            lua51::Instruction::Move { a: 2, mode: BC(0, 0) },
-            lua51::Instruction::Call { a: 1, mode: BC(2, 2) },
+            lua51::Instruction::Move {
+                a: 2,
+                mode: BC(Register(0), Unused),
+            },
+            lua51::Instruction::Call {
+                a: 1,
+                mode: BC(Generic(2), Generic(2)),
+            },
             lua51::Instruction::LoadK { a: 2, mode: Bx(3) },
-            lua51::Instruction::Equals { a: 0, mode: BC(1, 2) },
+            lua51::Instruction::Equals {
+                a: 0,
+                mode: BC(ConstantRegister(1, false), ConstantRegister(2, false)),
+            },
             lua51::Instruction::Jump { a: 0, mode: SignedBx(2) },
             lua51::Instruction::SetGlobal { a: 0, mode: Bx(0) },
             lua51::Instruction::GetGlobal { a: 0, mode: Bx(4) },
@@ -550,7 +613,7 @@ mod tests {
         let (instructions, _) = upcast(instructions, vec![0; 2], &mut Vec::new(), &mut 2, 0, false, &settings)?;
         let expected = vec![lua51::Instruction::LoadK { a: 5, mode: Bx(0) }, lua51::Instruction::SetList {
             a: 0,
-            mode: BC(5, 1),
+            mode: BC(Generic(5), Generic(1)),
         }];
 
         assert_eq!(instructions, expected);
@@ -571,7 +634,10 @@ mod tests {
         let expected = vec![
             lua51::Instruction::LoadK { a: 5, mode: Bx(0) },
             lua51::Instruction::LoadK { a: 6, mode: Bx(0) },
-            lua51::Instruction::SetList { a: 0, mode: BC(6, 1) },
+            lua51::Instruction::SetList {
+                a: 0,
+                mode: BC(Generic(6), Generic(1)),
+            },
         ];
 
         assert_eq!(instructions, expected);
@@ -585,10 +651,22 @@ mod tests {
 
         let (instructions, _) = upcast(instructions, vec![0; 1], &mut Vec::new(), &mut 2, 0, true, &settings)?;
         let expected = vec![
-            lua51::Instruction::NewTable { a: 1, mode: BC(0, 0) },
-            lua51::Instruction::VarArg { a: 2, mode: BC(0, 0) },
-            lua51::Instruction::SetList { a: 1, mode: BC(0, 1) },
-            lua51::Instruction::Move { a: 0, mode: BC(1, 0) },
+            lua51::Instruction::NewTable {
+                a: 1,
+                mode: BC(Unused, Unused),
+            },
+            lua51::Instruction::VarArg {
+                a: 2,
+                mode: BC(Generic(0), Unused),
+            },
+            lua51::Instruction::SetList {
+                a: 1,
+                mode: BC(Generic(0), Generic(1)),
+            },
+            lua51::Instruction::Move {
+                a: 0,
+                mode: BC(Register(1), Unused),
+            },
             lua51::Instruction::LoadK { a: 1, mode: Bx(0) },
         ];
 
