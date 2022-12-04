@@ -3,20 +3,36 @@ on: [push]
 name: Tests
 
 jobs:
-  check:
+  lint:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
         with:
-            profile: minimal
-            toolchain: stable
-            override: true
-
-      - name: Run unit tests
-        uses: actions-rs/cargo@v1
+          toolchain: nightly
+          override: true
+      - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features integration
+          args: --features integration --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+      - uses: actions-rs/grcov@v0.1
+        id: coverage
+      - name: Copy coverage report
+        run: |
+          cp -r ${{ steps.coverage.outputs.report }} ${GITHUB_WORKSPACE}/coverage
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Coverage
+          path: coverage
+      - uses: popsiclestick/gist-sync-action@v1.2.0
+        with:
+          auth: ${{ secrets.GIST_TOKEN }}
+          gist_url: https://gist.github.com/vE5li/173a7aa9ac7d5e82e238048e06aa99c2
+          gist_title: lunify-coverage-badge.svg
+          gist_description: Lunify coverage badge
+          github_file: coverage/badges/flat.svg

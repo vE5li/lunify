@@ -1,7 +1,8 @@
 # Lunify
 
 [![Tests](https://github.com/ve5li/lunify/workflows/Tests/badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ATests)
-[![Code Quality](https://github.com/ve5li/lunify/workflows/Code%20Quality/badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ACode+quality)
+[![Code Quality](https://github.com/ve5li/lunify/workflows/Code%20Quality/badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ACode+Quality)
+[![Test Coverage](https://raw.githubusercontent.com/gist/vE5li/173a7aa9ac7d5e82e238048e06aa99c2/raw/lunify-coverage-badge.svg)](https://github.com/ve5li/lunify/actions?query=workflow%3ATests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/lunify.svg)](https://crates.io/crates/lunify)
 
