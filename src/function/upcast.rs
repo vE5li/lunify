@@ -13,7 +13,7 @@ pub(crate) fn upcast(
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
     let mut builder = FunctionBuilder::default();
-    let mut constant_manager = ConstantManager { settings, constants };
+    let mut constant_manager = ConstantManager { constants };
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
         builder.set_line_number(line_number);
@@ -56,7 +56,7 @@ pub(crate) fn upcast(
 
                 // Create a new constant to hold an identifier to the global that saves the
                 // value in RA+3.
-                let global_constant = constant_manager.create_unique(builder.get_program_counter())?;
+                let global_constant = constant_manager.create_unique(builder.get_program_counter());
 
                 // Instruction to save RA+3.
                 builder.instruction(lua51::Instruction::SetGlobal {
@@ -107,7 +107,7 @@ pub(crate) fn upcast(
 
                     let variable_count = c.0 + 1;
                     let call_base = a + variable_count + 2;
-                    let constant_nil = constant_manager.constant_nil()?;
+                    let constant_nil = constant_manager.constant_nil();
 
                     // Move the iterator function, the table and the index to our call base.
                     builder.instruction(lua51::Instruction::Move {
@@ -139,6 +139,14 @@ pub(crate) fn upcast(
                         });
                     }
 
+                    // Instead of using the the constant nil in the EQ instruction directly, we
+                    // load in on to the stack using LOADK so that we don't have to worry about the
+                    // maximum constant index for the B and C registers.
+                    builder.extra_instruction(lua51::Instruction::LoadK {
+                        a: call_base,
+                        mode: Bx(constant_nil),
+                    });
+
                     // The control variable for the key/index is located at A+2, so as soon as it
                     // is nil, we are done with the iteration. If it is not nil we jump back and
                     // iterate again. It's not obvious from the code here but following this
@@ -146,18 +154,18 @@ pub(crate) fn upcast(
                     // of the jump. That JMP instruction doesn't need any modification here.
                     builder.extra_instruction(lua51::Instruction::Equals {
                         a: 0,
-                        mode: BC(ConstantRegister(a + 2, false), ConstantRegister(constant_nil, true)),
+                        mode: BC(ConstantRegister(a + 2, false), ConstantRegister(call_base, false)),
                     });
                 }
             }
             lua50::Instruction::TForPrep { a, mode } => {
                 // Globals for saving RA+1 and RA+2.
-                let ra1_constant = constant_manager.create_unique(builder.get_program_counter())?;
-                let ra2_constant = constant_manager.create_unique(builder.get_program_counter() + 1)?;
+                let ra1_constant = constant_manager.create_unique(builder.get_program_counter());
+                let ra2_constant = constant_manager.create_unique(builder.get_program_counter() + 1);
 
-                let type_global_constant = constant_manager.constant_for_str("type")?;
-                let table_global_constant = constant_manager.constant_for_str("table")?;
-                let next_global_constant = constant_manager.constant_for_str("next")?;
+                let type_global_constant = constant_manager.constant_for_str("type");
+                let table_global_constant = constant_manager.constant_for_str("table");
+                let next_global_constant = constant_manager.constant_for_str("next");
 
                 // Instructions to save RA+1 and RA+2.
                 builder.instruction(lua51::Instruction::SetGlobal {
@@ -529,9 +537,10 @@ mod tests {
                 a: 2,
                 mode: BC(Register(4), Unused),
             },
+            lua51::Instruction::LoadK { a: 4, mode: Bx(0) },
             lua51::Instruction::Equals {
                 a: 0,
-                mode: BC(ConstantRegister(2, false), ConstantRegister(0, true)),
+                mode: BC(ConstantRegister(2, false), ConstantRegister(4, false)),
             },
         ];
 

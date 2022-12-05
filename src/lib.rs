@@ -30,7 +30,7 @@ pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) ->
     #[cfg(feature = "debug")]
     {
         println!("\n======== Header ========");
-        println!("version: {}", version);
+        println!("version: {version}");
     }
 
     let input_format = Format::from_byte_stream(&mut byte_stream, version, settings)?;

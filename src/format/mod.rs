@@ -100,13 +100,13 @@ impl Format {
 
         #[cfg(feature = "debug")]
         {
-            println!("format: {}", format);
-            println!("endianness: {:?}", endianness);
-            println!("integer_width: {}", integer_width);
-            println!("size_t_width: {}", size_t_width);
-            println!("instruction_width: {}", instruction_width);
-            println!("number_width: {}", number_width);
-            println!("is_number_integral: {}", is_number_integral);
+            println!("format: {format}");
+            println!("endianness: {endianness:?}");
+            println!("integer_width: {integer_width}");
+            println!("size_t_width: {size_t_width}");
+            println!("instruction_width: {instruction_width}");
+            println!("number_width: {number_width}");
+            println!("is_number_integral: {is_number_integral}");
         }
 
         Ok(Self {

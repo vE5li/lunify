@@ -41,7 +41,7 @@ impl Function {
         let mut instructions = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("instruction_count: {}", instruction_count);
+        println!("instruction_count: {instruction_count}");
 
         #[cfg(feature = "debug")]
         println!("\n======== Instructions ========");
@@ -50,7 +50,7 @@ impl Function {
             let instruction = T::from_byte_stream(byte_stream, settings, layout)?;
 
             #[cfg(feature = "debug")]
-            println!("[{}] {:?}", _program_counter, instruction);
+            println!("[{_program_counter}] {instruction:?}");
 
             instructions.push(instruction);
         }
@@ -64,7 +64,7 @@ impl Function {
 
         #[cfg(feature = "debug")]
         {
-            println!("\nconstant_count: {}", constant_count);
+            println!("\nconstant_count: {constant_count}");
             println!("\n======== Constants ========");
         }
 
@@ -76,14 +76,14 @@ impl Function {
                     constants.push(Constant::Nil);
 
                     #[cfg(feature = "debug")]
-                    println!("constant[{}] (nil)", _index);
+                    println!("constant[{_index}] (nil)");
                 }
 
                 1 => {
                     let boolean = byte_stream.byte()?;
 
                     #[cfg(feature = "debug")]
-                    println!("constant[{}] (bool): {:?}", _index, boolean);
+                    println!("constant[{_index}] (bool): {boolean:?}");
 
                     constants.push(Constant::Boolean(boolean != 0));
                 }
@@ -92,7 +92,7 @@ impl Function {
                     let number = byte_stream.number()?;
 
                     #[cfg(feature = "debug")]
-                    println!("constant[{}] (number): {:?}", _index, number);
+                    println!("constant[{_index}] (number): {number:?}");
 
                     constants.push(Constant::Number(number));
                 }
@@ -118,7 +118,7 @@ impl Function {
         let mut functions = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("\nfunction_count: {}", function_count);
+        println!("\nfunction_count: {function_count}");
 
         for _index in 0..function_count as usize {
             let function = Function::from_byte_stream(byte_stream, version, settings)?;
@@ -134,7 +134,7 @@ impl Function {
 
         #[cfg(feature = "debug")]
         {
-            println!("local_variable_count: {}", local_variable_count);
+            println!("local_variable_count: {local_variable_count}");
             println!("\n======== Local variables ========");
         }
 
@@ -144,10 +144,7 @@ impl Function {
             let end_program_counter = byte_stream.integer()?;
 
             #[cfg(feature = "debug")]
-            println!(
-                "local variable[{}] ({} - {}): {:?}",
-                _index, start_program_counter, end_program_counter, name
-            );
+            println!("local variable[{_index}] ({start_program_counter} - {end_program_counter}): {name:?}");
 
             let local_variable = LocalVariable {
                 name,
@@ -166,7 +163,7 @@ impl Function {
         let mut line_info = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("line_info_count: {}", line_info_count);
+        println!("line_info_count: {line_info_count}");
 
         for _index in 0..line_info_count as usize {
             let line = byte_stream.integer()?;
@@ -181,13 +178,13 @@ impl Function {
         let mut upvalues = Vec::new();
 
         #[cfg(feature = "debug")]
-        println!("\nupvalue_count: {}", upvalue_count);
+        println!("\nupvalue_count: {upvalue_count}");
 
         for _index in 0..upvalue_count as usize {
             let upvalue = byte_stream.string()?;
 
             #[cfg(feature = "debug")]
-            println!("upvalue[{}]: {:?}", _index, upvalue);
+            println!("upvalue[{_index}]: {upvalue:?}");
 
             upvalues.push(upvalue);
         }
@@ -216,13 +213,13 @@ impl Function {
         #[cfg(feature = "debug")]
         {
             println!("\n======== Function ========");
-            println!("source_file: {}", source_file);
-            println!("line_defined: {}", line_defined);
-            println!("last_line_defined: {}", last_line_defined);
-            println!("upvalue_count: {}", _upvalue_count);
-            println!("parameter_count: {}", parameter_count);
-            println!("is_variadic: {}", is_variadic);
-            println!("maxstacksize: {}", maxstacksize);
+            println!("source_file: {source_file}");
+            println!("line_defined: {line_defined}");
+            println!("last_line_defined: {last_line_defined}");
+            println!("upvalue_count: {_upvalue_count}");
+            println!("parameter_count: {parameter_count}");
+            println!("is_variadic: {is_variadic}");
+            println!("maxstacksize: {maxstacksize}");
         }
 
         let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == LuaVersion::Lua51 {
