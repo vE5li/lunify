@@ -103,7 +103,7 @@ impl ModeGet<lua51::Instruction> for ConstantRegister {
 impl ModePut for ConstantRegister {
     fn put(&self, settings: &Settings, layout: &OperantLayout) -> Result<u64, LunifyError> {
         if self.0 > settings.output.get_maximum_constant_index() {
-            return Err(LunifyError::ValueTooTooBigForOperant);
+            return Err(LunifyError::ValueTooBigForOperant);
         }
 
         let value = match self.1 {
@@ -227,7 +227,7 @@ mod tests {
         let settings = Settings::default();
         mode_test_put(
             ConstantRegister(1 + settings.output.get_maximum_constant_index(), false),
-            Err(LunifyError::ValueTooTooBigForOperant),
+            Err(LunifyError::ValueTooBigForOperant),
         );
     }
 

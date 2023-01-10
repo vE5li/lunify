@@ -25,7 +25,7 @@ impl OperantLayout {
         let maximum_value = (1 << self.size) - 1;
 
         if value > maximum_value {
-            return Err(LunifyError::ValueTooTooBigForOperant);
+            return Err(LunifyError::ValueTooBigForOperant);
         }
 
         Ok((value & self.bit_mask) << self.position)
@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn layout_put_out_of_bounds() {
         let layout = OperantLayout::new(2, 2);
-        assert_eq!(layout.put(0b111), Err(LunifyError::ValueTooTooBigForOperant));
+        assert_eq!(layout.put(0b111), Err(LunifyError::ValueTooBigForOperant));
     }
 
     #[test]
