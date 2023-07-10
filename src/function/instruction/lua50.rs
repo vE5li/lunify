@@ -1,14 +1,14 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operant::{Bx, Generic, Opcode, SignedBx, A, BC};
-use super::{ConstantRegister, InstructionLayout, OperantType, Register, Unused};
+use super::operand::{Bx, Generic, Opcode, SignedBx, A, BC};
+use super::{ConstantRegister, InstructionLayout, OperandType, Register, Unused};
 use crate::LunifyError;
 
 /// Lua 5.0 compile constants. The Lua interpreter is compiled with certain
-/// predefined constants that affect how the bytecode is generated. This
+/// predefined constants that affect how the byte code is generated. This
 /// structure represents a small subset of the constants that are relevant for
-/// Lunify. If the bytecode you are trying to modify was complied with
+/// Lunify. If the byte code you are trying to modify was complied with
 /// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -16,12 +16,12 @@ pub struct Settings<'a> {
     /// Maximum number of elements that can be on the stack at the same time
     /// (`MAXSTACK`).
     pub stack_limit: u64,
-    /// Number of elements to put on the stack before inserting a SETLIST
+    /// Number of elements to put on the stack before inserting a `SETLIST`
     /// instruction (`LFIELDS_PER_FLUSH`).
     pub fields_per_flush: u64,
     /// Lua binary file signature (`LUA_SIGNATURE`).
     pub binary_signature: &'a str,
-    /// Memory layout of instructions inside the Lua bytecode (`SIZE_*`,
+    /// Memory layout of instructions inside the Lua byte code (`SIZE_*`,
     /// `POS_*`).
     pub layout: InstructionLayout,
 }
@@ -33,10 +33,10 @@ impl<'a> Default for Settings<'a> {
             fields_per_flush: 32,
             binary_signature: "\x1bLua",
             layout: InstructionLayout::from_specification([
-                OperantType::Opcode(6),
-                OperantType::C(9),
-                OperantType::B(9),
-                OperantType::A(8),
+                OperandType::Opcode(6),
+                OperandType::C(9),
+                OperandType::B(9),
+                OperandType::A(8),
             ])
             .unwrap(),
         }

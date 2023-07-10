@@ -1,12 +1,12 @@
-use super::OperantLayout;
+use super::OperandLayout;
 use crate::{lua50, lua51, LunifyError, Settings};
 
 pub(crate) trait ModeGet<T> {
-    fn get(value: u64, settings: &Settings, layout: &OperantLayout) -> Self;
+    fn get(value: u64, settings: &Settings, layout: &OperandLayout) -> Self;
 }
 
 pub(crate) trait ModePut {
-    fn put(&self, settings: &Settings, layout: &OperantLayout) -> Result<u64, LunifyError>;
+    fn put(&self, settings: &Settings, layout: &OperandLayout) -> Result<u64, LunifyError>;
 }
 
 pub(crate) trait ModeOffset {
@@ -17,13 +17,13 @@ pub(crate) trait ModeOffset {
 pub(crate) struct Unused;
 
 impl<T> ModeGet<T> for Unused {
-    fn get(_value: u64, _settings: &Settings, _layout: &OperantLayout) -> Self {
+    fn get(_value: u64, _settings: &Settings, _layout: &OperandLayout) -> Self {
         Unused
     }
 }
 
 impl ModePut for Unused {
-    fn put(&self, _settings: &Settings, _layout: &OperantLayout) -> Result<u64, LunifyError> {
+    fn put(&self, _settings: &Settings, _layout: &OperandLayout) -> Result<u64, LunifyError> {
         Ok(0)
     }
 }
@@ -34,13 +34,13 @@ impl ModeOffset for Unused {}
 pub(crate) struct Generic(pub u64);
 
 impl<T> ModeGet<T> for Generic {
-    fn get(value: u64, _settings: &Settings, layout: &OperantLayout) -> Self {
+    fn get(value: u64, _settings: &Settings, layout: &OperandLayout) -> Self {
         Generic(layout.get(value))
     }
 }
 
 impl ModePut for Generic {
-    fn put(&self, _settings: &Settings, layout: &OperantLayout) -> Result<u64, LunifyError> {
+    fn put(&self, _settings: &Settings, layout: &OperandLayout) -> Result<u64, LunifyError> {
         layout.put(self.0)
     }
 }
@@ -51,13 +51,13 @@ impl ModeOffset for Generic {}
 pub(crate) struct Register(pub u64);
 
 impl<T> ModeGet<T> for Register {
-    fn get(value: u64, _settings: &Settings, layout: &OperantLayout) -> Self {
+    fn get(value: u64, _settings: &Settings, layout: &OperandLayout) -> Self {
         Register(layout.get(value))
     }
 }
 
 impl ModePut for Register {
-    fn put(&self, _settings: &Settings, layout: &OperantLayout) -> Result<u64, LunifyError> {
+    fn put(&self, _settings: &Settings, layout: &OperandLayout) -> Result<u64, LunifyError> {
         layout.put(self.0)
     }
 }
@@ -74,7 +74,7 @@ impl ModeOffset for Register {
 pub(crate) struct ConstantRegister(pub u64, pub bool);
 
 impl ModeGet<lua50::Instruction> for ConstantRegister {
-    fn get(value: u64, settings: &Settings, layout: &OperantLayout) -> Self {
+    fn get(value: u64, settings: &Settings, layout: &OperandLayout) -> Self {
         let mut value = layout.get(value);
         let is_constant = value >= settings.lua50.stack_limit;
 
@@ -87,7 +87,7 @@ impl ModeGet<lua50::Instruction> for ConstantRegister {
 }
 
 impl ModeGet<lua51::Instruction> for ConstantRegister {
-    fn get(value: u64, settings: &Settings, layout: &OperantLayout) -> Self {
+    fn get(value: u64, settings: &Settings, layout: &OperandLayout) -> Self {
         let mut value = layout.get(value);
         let constant_bit = settings.lua51.get_constant_bit();
         let is_constant = value & constant_bit != 0;
@@ -101,9 +101,9 @@ impl ModeGet<lua51::Instruction> for ConstantRegister {
 }
 
 impl ModePut for ConstantRegister {
-    fn put(&self, settings: &Settings, layout: &OperantLayout) -> Result<u64, LunifyError> {
+    fn put(&self, settings: &Settings, layout: &OperandLayout) -> Result<u64, LunifyError> {
         if self.0 > settings.output.get_maximum_constant_index() {
-            return Err(LunifyError::ValueTooBigForOperant);
+            return Err(LunifyError::ValueTooBigForOperand);
         }
 
         let value = match self.1 {
@@ -126,7 +126,7 @@ impl ModeOffset for ConstantRegister {
 #[cfg(test)]
 mod tests {
     use super::{ConstantRegister, Generic, ModeGet, ModeOffset, Register, Unused};
-    use crate::function::instruction::operant::mode::ModePut;
+    use crate::function::instruction::operand::mode::ModePut;
     use crate::{lua50, lua51, LunifyError, Settings};
 
     fn mode_test_get<T, L>(value: u64, expected: T)
@@ -227,7 +227,7 @@ mod tests {
         let settings = Settings::default();
         mode_test_put(
             ConstantRegister(1 + settings.output.get_maximum_constant_index(), false),
-            Err(LunifyError::ValueTooBigForOperant),
+            Err(LunifyError::ValueTooBigForOperand),
         );
     }
 

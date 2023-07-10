@@ -5,10 +5,10 @@ use crate::{lua51, LunifyError, Settings};
 pub(crate) fn convert(
     instructions: Vec<lua51::Instruction>,
     line_info: Vec<i64>,
-    maxstacksize: &mut u8,
+    maximum_stack_size: &mut u8,
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
-    // If fields_per_flush is the same, there is nothing to convert, so return
+    // If `fields_per_flush` is the same, there is nothing to convert, so return
     // early.
     if settings.lua51.fields_per_flush == settings.output.fields_per_flush {
         return Ok((instructions, line_info));
@@ -35,7 +35,7 @@ pub(crate) fn convert(
                 };
 
                 // Good case: we are on the first page and the number of entries is smaller than
-                // either LFIELDS_PER_FLUSH, meaning we can just insert a SETLIST instruction
+                // either `LFIELDS_PER_FLUSH`, meaning we can just insert a `SETLIST` instruction
                 // without any modification to the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua51.fields_per_flush, settings.output.fields_per_flush) {
                     builder.instruction(lua51::Instruction::SetList {
@@ -54,15 +54,15 @@ pub(crate) fn convert(
                     // already before any instructions if it is a parameter to a function call. So
                     // we make sure that at least the first instruction will always match.
                     // I am unsure that code like this can actually be emitted by the Lua compiler,
-                    // because any assignment of a table should start with a NEWTABLE instruction,
+                    // because any assignment of a table should start with a `NEWTABLE` instruction,
                     // but better safe than sorry.
                     if matches!(instruction.stack_destination(), Some(destination) if destination.start == a) || instruction_index == 0 {
-                        // Should either be NEWTABLE or SETLIST.
+                        // Should either be `NEWTABLE` or `SETLIST`.
                         if let lua51::Instruction::SetList { mode: BC(b, c), .. } = *instruction {
                             let mut offset = b.0 as i64;
                             let mut page = c.0;
 
-                            // Remove the SETLIST instruction.
+                            // Remove the `SETLIST` instruction.
                             builder.remove_instruction(instruction_index);
 
                             // Go back up the stack and update the stack positions.
@@ -72,7 +72,7 @@ pub(crate) fn convert(
 
                                 if let Some(stack_destination) = instruction.stack_destination() {
                                     if offset + stack_destination.start as i64 - 1 == (a + settings.output.fields_per_flush) as i64 {
-                                        // Add a new SETLIST instruction.
+                                        // Add a new `SETLIST` instruction.
                                         builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
                                             a,
                                             mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
@@ -104,7 +104,7 @@ pub(crate) fn convert(
         };
     }
 
-    builder.finalize(maxstacksize, settings)
+    builder.finalize(maximum_stack_size, settings)
 }
 
 #[cfg(test)]

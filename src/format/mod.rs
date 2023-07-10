@@ -12,7 +12,7 @@ pub use width::BitWidth;
 use crate::serialization::{ByteStream, ByteWriter};
 use crate::{LunifyError, Settings};
 
-/// Lua bytecode format.
+/// Lua byte code format.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Format {

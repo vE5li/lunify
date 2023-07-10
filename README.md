@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/lunify.svg)](https://crates.io/crates/lunify)
 
-A crate for converting Lua bytecode to different versions and formats.
+A crate for converting Lua byte code to different versions and formats.
 
 Currently Lua 5.0 and Lua 5.1 are supported inputs.
 
@@ -15,13 +15,13 @@ Currently Lua 5.0 and Lua 5.1 are supported inputs.
 ```rust
 use lunify::{Format, LunifyError, Endianness, BitWidth, unify};
 
-// Lua bytecode in any suppored format
+// Lua byte code in any suppored format
 let input_bytes = include_bytes!("../test_files/lua50.luab");
 
 // Desired output format. May specify pointer width, endianness, sizes of datatypes, ...
 let output_format = Format {
     endianness: Endianness::Little,
-    // Convert from bytecode that runs on a 32 bit machine to bytcode that runs on a 64 bit machine
+    // Convert from byte code that runs on a 32 bit machine to byte code that runs on a 64 bit machine
     size_t_width: BitWidth::Bit64,
     ..Format::default()
 };

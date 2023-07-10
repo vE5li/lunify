@@ -27,3 +27,11 @@ jobs:
         with:
           command: clippy
           args: --all -- -D warnings
+
+      - name: Install cargo-spellcheck
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-spellcheck
+      - uses: actions/checkout@v3
+      - name: Run cargo-spellcheck
+        run: cargo spellcheck --code 1

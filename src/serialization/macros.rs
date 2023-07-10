@@ -1,4 +1,4 @@
-// Workaround untli *_le_bytes and *_be_bytes are part of a trait.
+/// Workaround until `*_le_bytes` and `*_be_bytes` are part of a trait.
 macro_rules! to_slice {
     ($writer:expr, $value:expr, $width:ident, $type32:ty) => {
         match ($writer.format.$width, $writer.format.endianness) {
@@ -10,7 +10,7 @@ macro_rules! to_slice {
     };
 }
 
-// Workaround untli *_le_bytes and *_be_bytes are part of a trait.
+/// Workaround until `*_le_bytes` and `*_be_bytes` are part of a trait.
 macro_rules! from_slice {
     ($stream:expr, $width:expr, $endianness:expr, $type32:ty, $type64:ty) => {{
         let endianness = $endianness;
@@ -25,5 +25,3 @@ macro_rules! from_slice {
         }
     }};
 }
-
-//pub(crate) use {to_slice, from_slice};

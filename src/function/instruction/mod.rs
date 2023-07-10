@@ -5,10 +5,10 @@ mod interface;
 pub mod lua50;
 /// Lua 5.1 settings.
 pub mod lua51;
-mod operant;
+mod operand;
 mod settings;
 
 pub(crate) use self::interface::LuaInstruction;
-pub(crate) use self::operant::{Bx, ConstantRegister, Generic, Register, SignedBx, Unused, BC};
-pub use self::operant::{InstructionLayout, OperantType};
+pub(crate) use self::operand::{Bx, ConstantRegister, Generic, Register, SignedBx, Unused, BC};
+pub use self::operand::{InstructionLayout, OperandType};
 pub use self::settings::Settings;

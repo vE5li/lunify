@@ -10,7 +10,7 @@ use std::fmt::Debug;
 use self::constant::Constant;
 use self::convert::convert;
 use self::instruction::LuaInstruction;
-pub use self::instruction::{lua50, lua51, InstructionLayout, OperantType, Settings};
+pub use self::instruction::{lua50, lua51, InstructionLayout, OperandType, Settings};
 use self::local::LocalVariable;
 use self::upcast::upcast;
 use crate::format::LuaVersion;
@@ -23,7 +23,7 @@ pub(crate) struct Function {
     last_line_defined: i64,
     parameter_count: u8,
     is_variadic: u8,
-    maxstacksize: u8,
+    maximum_stack_size: u8,
     instructions: Vec<u64>,
     constants: Vec<Constant>,
     functions: Vec<Function>,
@@ -208,7 +208,7 @@ impl Function {
         let _upvalue_count = byte_stream.byte()?;
         let parameter_count = byte_stream.byte()?;
         let mut is_variadic = byte_stream.byte()?;
-        let mut maxstacksize = byte_stream.byte()?;
+        let mut maximum_stack_size = byte_stream.byte()?;
 
         #[cfg(feature = "debug")]
         {
@@ -219,7 +219,7 @@ impl Function {
             println!("upvalue_count: {_upvalue_count}");
             println!("parameter_count: {parameter_count}");
             println!("is_variadic: {is_variadic}");
-            println!("maxstacksize: {maxstacksize}");
+            println!("maximum_stack_size: {maximum_stack_size}");
         }
 
         let (instructions, constants, functions, line_info, local_variables, upvalues) = if version == LuaVersion::Lua51 {
@@ -230,9 +230,9 @@ impl Function {
             let local_variables = Self::get_local_variables(byte_stream)?;
             let upvalues = Self::get_upvalues(byte_stream)?;
 
-            // Convert from the input Lua 5.1 bytcode to the desired output Lua 5.1
-            // bytecode.
-            let (instructions, line_info) = convert(instructions, line_info, &mut maxstacksize, settings)?;
+            // Convert from the input Lua 5.1 byte code to the desired output Lua 5.1
+            // byte code.
+            let (instructions, line_info) = convert(instructions, line_info, &mut maximum_stack_size, settings)?;
             let instructions = Self::strip_instructions(instructions, settings)?;
 
             (instructions, constants, functions, line_info, local_variables, upvalues)
@@ -245,17 +245,17 @@ impl Function {
             let instructions = Self::get_instructions(byte_stream, settings, &settings.lua50.layout)?;
 
             if is_variadic != 0 {
-                // Lua 5.1 uses an addition flag called VARARG_ISVARARG for variadic functions
+                // Lua 5.1 uses an addition flag called `VARARG_ISVARARG` for variadic functions
                 // which we need to set, otherwise the function will be invalid.
                 is_variadic |= 2;
             }
 
-            // Upcast instructions from Lua 5.0 to Lua 5.1.
+            // Up-cast instructions from Lua 5.0 to Lua 5.1.
             let (instructions, line_info) = upcast(
                 instructions,
                 line_info,
                 &mut constants,
-                &mut maxstacksize,
+                &mut maximum_stack_size,
                 parameter_count,
                 is_variadic != 0,
                 settings,
@@ -272,7 +272,7 @@ impl Function {
             last_line_defined,
             parameter_count,
             is_variadic,
-            maxstacksize,
+            maximum_stack_size,
             instructions,
             constants,
             functions,
@@ -290,7 +290,7 @@ impl Function {
         byte_writer.byte(self.upvalues.len() as u8);
         byte_writer.byte(self.parameter_count);
         byte_writer.byte(self.is_variadic);
-        byte_writer.byte(self.maxstacksize);
+        byte_writer.byte(self.maximum_stack_size);
 
         // instructions
         byte_writer.integer(self.instructions.len() as i64);
@@ -366,7 +366,7 @@ mod test {
 
         // Constant count.
         byte_writer.integer(1);
-        // Invanid type.
+        // Invalid type.
         byte_writer.byte(5);
 
         let bytes = byte_writer.finalize();

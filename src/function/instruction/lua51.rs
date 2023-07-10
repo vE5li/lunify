@@ -3,14 +3,14 @@ use std::ops::Range;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operant::{Bx, ConstantRegister, Generic, Opcode, Register, SignedBx, Unused, A, BC};
-use super::{InstructionLayout, OperantType};
+use super::operand::{Bx, ConstantRegister, Generic, Opcode, Register, SignedBx, Unused, A, BC};
+use super::{InstructionLayout, OperandType};
 use crate::LunifyError;
 
 /// Lua 5.1 compile constants. The Lua interpreter is compiled with certain
-/// predefined constants that affect how the bytecode is generated. This
+/// predefined constants that affect how the byte code is generated. This
 /// structure represents a small subset of the constants that are relevant for
-/// Lunify. If the bytecode you are trying to modify was complied with
+/// Lunify. If the byte code you are trying to modify was complied with
 /// non-standard constants, you can use these settings to make it compatible.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -23,7 +23,7 @@ pub struct Settings<'a> {
     pub fields_per_flush: u64,
     /// Lua binary file signature (`LUA_SIGNATURE`).
     pub binary_signature: &'a str,
-    /// Memory layout of instructions inside the Lua bytecode (`SIZE_*`,
+    /// Memory layout of instructions inside the Lua byte code (`SIZE_*`,
     /// `POS_*`).
     pub layout: InstructionLayout,
 }
@@ -35,10 +35,10 @@ impl<'a> Default for Settings<'a> {
             stack_limit: 250,
             binary_signature: "\x1bLua",
             layout: InstructionLayout::from_specification([
-                OperantType::Opcode(6),
-                OperantType::A(8),
-                OperantType::C(9),
-                OperantType::B(9),
+                OperandType::Opcode(6),
+                OperandType::A(8),
+                OperandType::C(9),
+                OperandType::B(9),
             ])
             .unwrap(),
         }
@@ -98,9 +98,9 @@ lua_instructions! {
 
 impl Instruction {
     /// Get the stack index that a given instruction will move data into.
-    /// SetTable and SetList are technically not moving any data, but rather
-    /// modifying it, but we need this behaviour for detecting the correct
-    /// SetList instruction inside the upcast function.
+    /// `SetTable` and `SetList` are technically not moving any data, but rather
+    /// modifying it, but we need this behavior for detecting the correct
+    /// `SetList` instruction inside the `upcast` function.
     pub(crate) fn stack_destination(&self) -> Option<Range<u64>> {
         match *self {
             Instruction::Move { a, .. } => Some(a..a),

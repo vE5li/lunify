@@ -1,7 +1,7 @@
 [package]
 name = "lunify"
 authors = ["Lucas Pütz"]
-description = "A crate for converting Lua bytecode to different versions and formats"
+description = "A crate for converting Lua byte code to different versions and formats"
 categories = ["encoding"]
 keywords = ["lua", "bytecode"]
 version = "1.0.1"

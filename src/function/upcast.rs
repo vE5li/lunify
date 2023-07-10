@@ -7,7 +7,7 @@ pub(crate) fn upcast(
     instructions: Vec<lua50::Instruction>,
     line_info: Vec<i64>,
     constants: &mut Vec<Constant>,
-    maxstacksize: &mut u8,
+    maximum_stack_size: &mut u8,
     parameter_count: u8,
     is_variadic: bool,
     settings: &Settings,
@@ -77,32 +77,32 @@ pub(crate) fn upcast(
                 let position = builder.adjusted_jump_destination(mode.0)?;
 
                 // Instruction to restore RA+3 if we take the jump.
-                // This instruction is actually inserted *before* the SETGLOBAL instruction, but
-                // this works because of the way that for loops are generated in
-                // Lua 5.0. There is an initial JMP instruction that moves the
-                // program counter to the FORLOOP instruction, meaning this
-                // GetGlobal will *always* be called after we already saved RA+3
-                // with our SETGLOBAL instruction.
+                // This instruction is actually inserted *before* the `SETGLOBAL` instruction,
+                // but this works because of the way that for loops are
+                // generated in Lua 5.0. There is an initial `JMP` instruction
+                // that moves the program counter to the `FORLOOP` instruction,
+                // meaning this `GetGlobal` will *always* be called after we
+                // already saved RA+3 with our `SETGLOBAL` instruction.
                 builder.insert_extra_instruction(position, lua51::Instruction::GetGlobal {
                     a: a + 3,
                     mode: Bx(global_constant),
                 });
             }
             lua50::Instruction::TForLoop { a, mode: BC(_, c) } => {
-                // The TFORLOOP instruction in Lua 5.0 can move multiple results to the stack
-                // below the callbase, but Lua 5.1 can only move one result and
-                // the subsequent moves are done by MOVE instructions.
+                // The `TFORLOOP` instruction in Lua 5.0 can move multiple results to the stack
+                // below the call base, but Lua 5.1 can only move one result and
+                // the subsequent moves are done by `MOVE` instructions.
 
-                // If the argument count is 1 (argument count = c - 1), we can just map directly
-                // to Lua 5.1 TFORLOOP.
+                // If the argument count is 1 (`argument count = c - 1`), we can just map
+                // directly to Lua 5.1 `TFORLOOP`.
                 if c.0 == 0 {
                     builder.instruction(lua51::Instruction::TForLoop {
                         a,
                         mode: BC(Unused, Generic(c.0 + 1)),
                     });
                 } else {
-                    // In order to mimic the Lua 5.0 TFORLOOP instruction we can't insert MOVE
-                    // instructions after the TFORLOOP jump like Lua 5.1 does, because that won't
+                    // In order to mimic the Lua 5.0 `TFORLOOP` instruction we can't insert `MOVE`
+                    // instructions after the `TFORLOOP` jump like Lua 5.1 does, because that won't
                     // move our results to the stack after the last iteration.
 
                     let variable_count = c.0 + 1;
@@ -123,14 +123,14 @@ pub(crate) fn upcast(
                         mode: BC(Register(a + 2), Unused),
                     });
 
-                    // Call to iterator function (e.g. ipairs).
+                    // Call to iterator function (e.g. `ipairs`).
                     builder.extra_instruction(lua51::Instruction::Call {
                         a: call_base,
                         mode: BC(Generic(3), Generic(variable_count + 1)),
                     });
 
                     // Move the results of our call back to our control variables. After the call,
-                    // our results will be at the call_base and upwards and our control variables
+                    // our results will be at the call base and upwards and our control variables
                     // are located at A+2 and upwards.
                     for offset in (0..variable_count).rev() {
                         builder.extra_instruction(lua51::Instruction::Move {
@@ -139,9 +139,9 @@ pub(crate) fn upcast(
                         });
                     }
 
-                    // Instead of using the the constant nil in the EQ instruction directly, we
-                    // load in on to the stack using LOADK so that we don't have to worry about the
-                    // maximum constant index for the B and C registers.
+                    // Instead of using the the constant nil in the `EQ` instruction directly, we
+                    // load in on to the stack using `LOADK` so that we don't have to worry about
+                    // the maximum constant index for the B and C registers.
                     builder.extra_instruction(lua51::Instruction::LoadK {
                         a: call_base,
                         mode: Bx(constant_nil),
@@ -150,8 +150,8 @@ pub(crate) fn upcast(
                     // The control variable for the key/index is located at A+2, so as soon as it
                     // is nil, we are done with the iteration. If it is not nil we jump back and
                     // iterate again. It's not obvious from the code here but following this
-                    // instruction will always be a JMP instruction that specifies the destination
-                    // of the jump. That JMP instruction doesn't need any modification here.
+                    // instruction will always be a `JMP` instruction that specifies the destination
+                    // of the jump. That `JMP` instruction doesn't need any modification here.
                     builder.extra_instruction(lua51::Instruction::Equals {
                         a: 0,
                         mode: BC(ConstantRegister(a + 2, false), ConstantRegister(call_base, false)),
@@ -209,9 +209,9 @@ pub(crate) fn upcast(
                 builder.extra_instruction(lua51::Instruction::Jump { a, mode: SignedBx(2) });
                 builder.last_instruction_fixed();
 
-                // Move RA to RA+1 and put the global "next" into RA, exactly like TForPrep
-                // does. Since we restore RA+1 from ra1_constant afterwards, we don't move the
-                // vaule to the stack directly but rather to ra1_constant.
+                // Move RA to RA+1 and put the global "next" into RA, exactly like `TForPrep`
+                // does. Since we restore RA+1 from `ra1_constant` afterwards, we don't move the
+                // value to the stack directly but rather to `ra1_constant`.
                 builder.extra_instruction(lua51::Instruction::SetGlobal { a, mode: Bx(ra1_constant) });
                 builder.extra_instruction(lua51::Instruction::GetGlobal {
                     a,
@@ -228,9 +228,9 @@ pub(crate) fn upcast(
                     mode: Bx(ra2_constant),
                 });
 
-                // Technically this Jump could be removed if it lands on the very next
+                // Technically this jump could be removed if it lands on the very next
                 // instruction, which will happen it the next instruction is a
-                // TForLoop. But I think it's better to keep this here for
+                // `TForLoop`. But I think it's better to keep this here for
                 // simplicity.
                 builder.extra_instruction(lua51::Instruction::Jump { a, mode });
             }
@@ -239,16 +239,16 @@ pub(crate) fn upcast(
                 let page = flat_index / settings.output.fields_per_flush;
                 let offset = flat_index % settings.output.fields_per_flush;
 
-                // In Lua 5.1 SETLISTO and SETLIST became a single instruction. The behaviour
-                // of SETLISTO is used when b is equal to zero.
+                // In Lua 5.1 `SETLISTO` and `SETLIST` became a single instruction. The behavior
+                // of `SETLISTO` is used when b is equal to zero.
                 let b = match matches!(instruction, lua50::Instruction::SetListO { .. }) {
                     true => 0,
                     false => offset,
                 };
 
                 // Good case: we are on the first page and the number of entries is smaller than
-                // either LFIELDS_PER_FLUSH, meaning we can just insert a SETLIST instruction
-                // without any modification to the previous code.
+                // either `LFIELDS_PER_FLUSH`, meaning we can just insert a `SETLIST`
+                // instruction without any modification to the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua50.fields_per_flush, settings.output.fields_per_flush) {
                     builder.instruction(lua51::Instruction::SetList {
                         a,
@@ -266,15 +266,15 @@ pub(crate) fn upcast(
                     // already before any instructions if it is a parameter to a function call. So
                     // we make sure that at least the first instruction will always match.
                     // I am unsure that code like this can actually be emitted by the Lua compiler,
-                    // because any assignment of a table should start with a NEWTABLE instruction,
+                    // because any assignment of a table should start with a `NEWTABLE` instruction,
                     // but better safe than sorry.
                     if matches!(instruction.stack_destination(), Some(destination) if destination.start == a) || instruction_index == 0 {
-                        // Should either be NEWTABLE or SETLIST.
+                        // Should either be `NEWTABLE` or `SETLIST`.
                         if let lua51::Instruction::SetList { mode: BC(b, c), .. } = *instruction {
                             let mut offset = b.0 as i64;
                             let mut page = c.0;
 
-                            // Remove the SETLIST instruction.
+                            // Remove the `SETLIST` instruction.
                             builder.remove_instruction(instruction_index);
 
                             // Go back up the stack and update the stack positions.
@@ -284,7 +284,7 @@ pub(crate) fn upcast(
 
                                 if let Some(stack_destination) = instruction.stack_destination() {
                                     if offset + stack_destination.start as i64 - 1 == (a + settings.output.fields_per_flush) as i64 {
-                                        // Add a new SETLIST instruction.
+                                        // Add a new `SETLIST` instruction.
                                         builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
                                             a,
                                             mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
@@ -318,11 +318,11 @@ pub(crate) fn upcast(
     }
 
     // Lua 5.0 used to collect variadic arguments in a table and store them in a
-    // local variable 'arg'. Lua 5.1 does things a bit differently, so for
+    // local variable `arg`. Lua 5.1 does things a bit differently, so for
     // variadic functions we insert instructions that are the equivalent of
-    // 'local arg = {...}'. Since we are at the very beginning of our function
+    // `local arg = {...}`. Since we are at the very beginning of our function
     // call, we don't need to worry about saving the stack above our
-    // arguments. Lua 5.1 has a flag called VARARG_NEEDSARG that can be set on the
+    // arguments. Lua 5.1 has a flag called `VARARG_NEEDSARG` that can be set on the
     // function header to achieve the same result, but it is behind a
     // compatibility feature flag. Even though that feature should be turned on
     // most of the time, I chose this approach because it will always work.
@@ -354,7 +354,7 @@ pub(crate) fn upcast(
         });
     }
 
-    builder.finalize(maxstacksize, settings)
+    builder.finalize(maximum_stack_size, settings)
 }
 
 #[cfg(test)]

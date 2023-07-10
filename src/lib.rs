@@ -11,13 +11,13 @@ mod function;
 pub use error::LunifyError;
 pub use format::{BitWidth, Endianness, Format};
 use function::Function;
-pub use function::{lua50, lua51, InstructionLayout, OperantType, Settings};
+pub use function::{lua50, lua51, InstructionLayout, OperandType, Settings};
 
 use crate::format::LuaVersion;
 use crate::serialization::{ByteStream, ByteWriter};
 
-/// Takes Lua bytecode in a supported format and converts it to bytecode in the
-/// specified output [Format]. Returns [LunifyError] on error.
+/// Takes Lua byte code in a supported format and converts it to byte code in the
+/// specified output [`Format`]. Returns [`LunifyError`] on error.
 pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) -> Result<Vec<u8>, LunifyError> {
     let mut byte_stream = ByteStream::new(input_bytes);
 
@@ -70,11 +70,11 @@ mod tests {
     use crate::{lua51, BitWidth, Endianness, Settings};
 
     #[cfg(feature = "integration")]
-    fn test_output(bytecode: &[u8]) {
+    fn test_output(byte_code: &[u8]) {
         use mlua::prelude::*;
 
         let lua = Lua::new();
-        lua.load(bytecode).exec().unwrap();
+        lua.load(byte_code).exec().unwrap();
         assert_eq!(lua.globals().get::<_, LuaNumber>("result").unwrap(), 9.0);
     }
 

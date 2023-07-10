@@ -112,22 +112,26 @@ impl FunctionBuilder {
         Ok(((program_counter as i64) + new_bx) as usize)
     }
 
-    pub(super) fn finalize(mut self, maxstacksize: &mut u8, settings: &Settings) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
+    pub(super) fn finalize(
+        mut self,
+        maximum_stack_size: &mut u8,
+        settings: &Settings,
+    ) -> Result<(Vec<Instruction>, Vec<i64>), LunifyError> {
         #[cfg(feature = "debug")]
         println!("\n======== Output ========");
 
         for context_index in 0..self.contexts.len() {
             // The stack positions might have changed significantly, so go over every
-            // instruction and make sure that the maxstacksize is big enough. If the stack
-            // had to be popped out too much in the conversion, we return an error.
-            // We also know that values on the stack will only be used after they have been
-            // put there by anther instruction, meaning if we make space for the
-            // instructions that push the values onto the stack, the stack will never
-            // overflow.
+            // instruction and make sure that the maximum stack size is big enough. If the
+            // stack had to be popped out too much in the conversion, we return
+            // an error. We also know that values on the stack will only be used
+            // after they have been put there by anther instruction, meaning if
+            // we make space for the instructions that push the values onto the
+            // stack, the stack will never overflow.
             if let Some(destination) = self.contexts[context_index].instruction.stack_destination() {
                 let new_stack_size = destination.end + 1;
                 match new_stack_size <= settings.output.stack_limit {
-                    true => *maxstacksize = (*maxstacksize).max(new_stack_size as u8),
+                    true => *maximum_stack_size = (*maximum_stack_size).max(new_stack_size as u8),
                     false => return Err(LunifyError::StackTooLarge(new_stack_size)),
                 }
             }
@@ -400,12 +404,12 @@ mod tests {
     fn finalize_expands_stack() -> Result<(), LunifyError> {
         let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 10, mode: Bx(1) };
-        let mut maxstacksize = 0;
+        let mut maximum_stack_size = 0;
 
         builder.instruction(instruction);
-        builder.finalize(&mut maxstacksize, &Default::default())?;
+        builder.finalize(&mut maximum_stack_size, &Default::default())?;
 
-        assert_eq!(maxstacksize, 11);
+        assert_eq!(maximum_stack_size, 11);
         Ok(())
     }
 
@@ -413,11 +417,11 @@ mod tests {
     fn finalize_expands_stack_too_large() {
         let mut builder = FunctionBuilder::default();
         let instruction = lua51::Instruction::LoadK { a: 250, mode: Bx(1) };
-        let mut maxstacksize = 0;
+        let mut maximum_stack_size = 0;
 
         builder.instruction(instruction);
 
-        let result = builder.finalize(&mut maxstacksize, &Default::default());
+        let result = builder.finalize(&mut maximum_stack_size, &Default::default());
         assert_eq!(result, Result::Err(LunifyError::StackTooLarge(251)));
     }
 
