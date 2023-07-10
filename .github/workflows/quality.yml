@@ -7,14 +7,13 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
             profile: minimal
             toolchain: nightly
             override: true
-            components: clippy, rustfmt, cargo-spellcheck, cargo-deadlinks
+            components: clippy, rustfmt
 
       - name: Check formatting
         uses: actions-rs/cargo@v1
@@ -28,14 +27,18 @@ jobs:
           command: clippy
           args: --all -- -D warnings
 
-      - name: Run cargo-spellcheck
-        uses: actions-rs/cargo@v1
+      - name: Install cargo-spellcheck
+        uses: taiki-e/install-action@v2
         with:
-          command: spellcheck
-          args: --code 1
+          tool: cargo-spellcheck
+
+      - name: Run cargo-spellcheck
+        run: cargo spellcheck --code 1
+
+      - name: Install cargo-deadlinks
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deadlinks
 
       - name: Run cargo-deadlinks
-        uses: actions-rs/cargo@v1
-        with:
-          command: deadlinks
-          args: -- --features integration
+        run: cargo deadlinks -- --features integration
