@@ -7,6 +7,7 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -32,6 +33,7 @@ jobs:
         with:
           tool: cargo-spellcheck
 
+      - uses: actions/checkout@v3
       - name: Run cargo-spellcheck
         run: cargo spellcheck --code 1
 
