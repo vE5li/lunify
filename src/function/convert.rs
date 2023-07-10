@@ -16,7 +16,7 @@ pub(crate) fn convert(
 
     let mut builder = FunctionBuilder::default();
 
-    for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
+    for (instruction, line_number) in instructions.into_iter().zip(line_info) {
         #[cfg(feature = "debug")]
         println!("[{}] {:?}", builder.get_program_counter(), instruction);
 

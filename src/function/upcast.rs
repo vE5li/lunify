@@ -15,7 +15,7 @@ pub(crate) fn upcast(
     let mut builder = FunctionBuilder::default();
     let mut constant_manager = ConstantManager { constants };
 
-    for (instruction, line_number) in instructions.into_iter().zip(line_info.into_iter()) {
+    for (instruction, line_number) in instructions.into_iter().zip(line_info) {
         builder.set_line_number(line_number);
 
         match instruction {
