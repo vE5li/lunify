@@ -14,7 +14,7 @@ jobs:
             profile: minimal
             toolchain: nightly
             override: true
-            components: clippy, rustfmt
+            components: clippy, rustfmt, cargo-spellcheck, cargo-deadlinks
 
       - name: Check formatting
         uses: actions-rs/cargo@v1
@@ -28,10 +28,14 @@ jobs:
           command: clippy
           args: --all -- -D warnings
 
-      - name: Install cargo-spellcheck
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-spellcheck
-      - uses: actions/checkout@v3
       - name: Run cargo-spellcheck
-        run: cargo spellcheck --code 1
+        uses: actions-rs/cargo@v1
+        with:
+          command: spellcheck
+          args: --code 1
+
+      - name: Run cargo-deadlinks
+        uses: actions-rs/cargo@v1
+        with:
+          command: deadlinks
+          args: -- --features integration
