@@ -35,8 +35,8 @@ pub(crate) fn convert(
                 };
 
                 // Good case: we are on the first page and the number of entries is smaller than
-                // either `LFIELDS_PER_FLUSH`, meaning we can just insert a `SETLIST` instruction
-                // without any modification to the previous code.
+                // either `LFIELDS_PER_FLUSH`, meaning we can just insert a `SETLIST`
+                // instruction without any modification to the previous code.
                 if page == 0 && flat_index <= u64::min(settings.lua51.fields_per_flush, settings.output.fields_per_flush) {
                     builder.instruction(lua51::Instruction::SetList {
                         a,

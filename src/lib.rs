@@ -16,8 +16,8 @@ pub use function::{lua50, lua51, InstructionLayout, OperandType, Settings};
 use crate::format::LuaVersion;
 use crate::serialization::{ByteStream, ByteWriter};
 
-/// Takes Lua byte code in a supported format and converts it to byte code in the
-/// specified output [`Format`]. Returns [`LunifyError`] on error.
+/// Takes Lua byte code in a supported format and converts it to byte code in
+/// the specified output [`Format`]. Returns [`LunifyError`] on error.
 pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) -> Result<Vec<u8>, LunifyError> {
     let mut byte_stream = ByteStream::new(input_bytes);
 
