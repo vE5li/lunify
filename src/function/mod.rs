@@ -21,6 +21,7 @@ pub(crate) struct Function {
     source_file: Vec<u8>,
     line_defined: i64,
     last_line_defined: i64,
+    upvalue_count: u8,
     parameter_count: u8,
     is_variadic: u8,
     maximum_stack_size: u8,
@@ -205,7 +206,7 @@ impl Function {
             LuaVersion::Lua50 => line_defined,
         };
 
-        let _upvalue_count = byte_stream.byte()?;
+        let upvalue_count = byte_stream.byte()?;
         let parameter_count = byte_stream.byte()?;
         let mut is_variadic = byte_stream.byte()?;
         let mut maximum_stack_size = byte_stream.byte()?;
@@ -216,7 +217,7 @@ impl Function {
             println!("source_file: {source_file:?}");
             println!("line_defined: {line_defined}");
             println!("last_line_defined: {last_line_defined}");
-            println!("upvalue_count: {_upvalue_count}");
+            println!("upvalue_count: {upvalue_count}");
             println!("parameter_count: {parameter_count}");
             println!("is_variadic: {is_variadic}");
             println!("maximum_stack_size: {maximum_stack_size}");
@@ -270,6 +271,7 @@ impl Function {
             source_file,
             line_defined,
             last_line_defined,
+            upvalue_count,
             parameter_count,
             is_variadic,
             maximum_stack_size,
@@ -287,7 +289,7 @@ impl Function {
         byte_writer.string(&self.source_file);
         byte_writer.integer(self.line_defined);
         byte_writer.integer(self.last_line_defined);
-        byte_writer.byte(self.upvalues.len() as u8);
+        byte_writer.byte(self.upvalue_count);
         byte_writer.byte(self.parameter_count);
         byte_writer.byte(self.is_variadic);
         byte_writer.byte(self.maximum_stack_size);
@@ -355,9 +357,10 @@ impl Function {
 
 #[cfg(test)]
 mod test {
+    use crate::format::LuaVersion;
     use crate::function::Function;
     use crate::serialization::{ByteStream, ByteWriter};
-    use crate::{Format, LunifyError};
+    use crate::{Format, LunifyError, Settings};
 
     #[test]
     fn get_constants_invalid() {
@@ -375,5 +378,37 @@ mod test {
         let result = Function::get_constants(&mut byte_stream);
         assert_eq!(result, Err(LunifyError::InvalidConstantType(5)));
         assert!(byte_stream.is_empty());
+    }
+
+    #[test]
+    fn write_preserves_stripped_upvalue_count() -> Result<(), LunifyError> {
+        let format = Format::default();
+        let function = Function {
+            source_file: Vec::new(),
+            line_defined: 0,
+            last_line_defined: 0,
+            upvalue_count: 1,
+            parameter_count: 0,
+            is_variadic: 0,
+            maximum_stack_size: 2,
+            instructions: Vec::new(),
+            constants: Vec::new(),
+            functions: Vec::new(),
+            local_variables: Vec::new(),
+            line_info: Vec::new(),
+            upvalues: Vec::new(),
+        };
+        let mut byte_writer = ByteWriter::new(&format);
+        function.write(&mut byte_writer)?;
+
+        let bytes = byte_writer.finalize();
+        let mut byte_stream = ByteStream::new(&bytes);
+        byte_stream.set_format(format);
+        let function = Function::from_byte_stream(&mut byte_stream, LuaVersion::Lua51, &Settings::default())?;
+
+        assert_eq!(function.upvalue_count, 1);
+        assert!(function.upvalues.is_empty());
+        assert!(byte_stream.is_empty());
+        Ok(())
     }
 }

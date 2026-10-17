@@ -15,6 +15,8 @@ use crate::LunifyError;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings<'a> {
+    /// Whether debug information should be stripped from the output.
+    pub stripped: bool,
     /// Maximum number of elements that can be on the stack at the same time
     /// (`MAXSTACK`).
     pub stack_limit: u64,
@@ -31,6 +33,7 @@ pub struct Settings<'a> {
 impl<'a> Default for Settings<'a> {
     fn default() -> Self {
         Self {
+            stripped: false,
             fields_per_flush: 50,
             stack_limit: 250,
             binary_signature: "\x1bLua",
