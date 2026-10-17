@@ -12,6 +12,11 @@ pub(crate) fn upcast(
     is_variadic: bool,
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
+    let stripped = line_info.is_empty();
+    let line_info = match stripped {
+        true => vec![0; instructions.len()],
+        false => line_info,
+    };
     let mut builder = FunctionBuilder::default();
     let mut constant_manager = ConstantManager { constants };
 
@@ -609,6 +614,47 @@ mod tests {
     #[test]
     fn upcast_set_list_large() -> Result<(), LunifyError> {
         set_list_test(20)
+    }
+
+    #[test]
+    fn upcast_stripped_input_to_stripped_output() -> Result<(), LunifyError> {
+        let mut settings = test_settings();
+        settings.output.stripped = true;
+        let input = vec![lua50::Instruction::LoadK { a: 0, mode: Bx(0) }];
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = upcast(input, Vec::new(), &mut Vec::new(), &mut 2, 0, false, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert!(line_info.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_stripped_input_to_unstripped_output() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let input = vec![lua50::Instruction::LoadK { a: 0, mode: Bx(0) }];
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = upcast(input, Vec::new(), &mut Vec::new(), &mut 2, 0, false, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert_eq!(line_info, vec![0]);
+        Ok(())
+    }
+
+    #[test]
+    fn upcast_unstripped_input_to_stripped_output() -> Result<(), LunifyError> {
+        let mut settings = test_settings();
+        settings.output.stripped = true;
+        let input = vec![lua50::Instruction::LoadK { a: 0, mode: Bx(0) }];
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = upcast(input, vec![42], &mut Vec::new(), &mut 2, 0, false, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert!(line_info.is_empty());
+        Ok(())
     }
 
     #[test]

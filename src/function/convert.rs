@@ -8,12 +8,18 @@ pub(crate) fn convert(
     maximum_stack_size: &mut u8,
     settings: &Settings,
 ) -> Result<(Vec<lua51::Instruction>, Vec<i64>), LunifyError> {
-    // If `fields_per_flush` is the same, there is nothing to convert, so return
-    // early.
-    if settings.lua51.fields_per_flush == settings.output.fields_per_flush {
+    let stripped = line_info.is_empty();
+
+    // Return early if `fields_per_flush` and the stripped state already match
+    // the requested output.
+    if settings.lua51.fields_per_flush == settings.output.fields_per_flush && stripped == settings.output.stripped {
         return Ok((instructions, line_info));
     }
 
+    let line_info = match stripped {
+        true => vec![0; instructions.len()],
+        false => line_info,
+    };
     let mut builder = FunctionBuilder::default();
 
     for (instruction, line_number) in instructions.into_iter().zip(line_info) {
@@ -212,6 +218,44 @@ mod tests {
     #[test]
     fn convert_set_list_large() -> Result<(), LunifyError> {
         set_list_test(20)
+    }
+
+    #[test]
+    fn convert_stripped_input_to_stripped_output() -> Result<(), LunifyError> {
+        let mut settings = test_settings();
+        settings.output.stripped = true;
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = convert(expected.clone(), Vec::new(), &mut 2, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert!(line_info.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn convert_stripped_input_to_unstripped_output() -> Result<(), LunifyError> {
+        let settings = test_settings();
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = convert(expected.clone(), Vec::new(), &mut 2, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert_eq!(line_info, vec![0]);
+        Ok(())
+    }
+
+    #[test]
+    fn convert_unstripped_input_to_stripped_output() -> Result<(), LunifyError> {
+        let mut settings = test_settings();
+        settings.output.stripped = true;
+        let expected = vec![lua51::Instruction::LoadK { a: 0, mode: Bx(0) }];
+
+        let (instructions, line_info) = convert(expected.clone(), vec![42], &mut 2, &settings)?;
+
+        assert_eq!(instructions, expected);
+        assert!(line_info.is_empty());
+        Ok(())
     }
 
     #[test]

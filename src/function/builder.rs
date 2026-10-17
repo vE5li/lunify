@@ -167,6 +167,10 @@ impl FunctionBuilder {
             }
         }
 
+        if settings.output.stripped {
+            self.line_info.clear();
+        }
+
         let instructions = self.contexts.into_iter().map(|context| context.instruction).collect();
         Ok((instructions, self.line_info))
     }
