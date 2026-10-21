@@ -1,0 +1,42 @@
+# Managed by repository-manager, changes to this file are overwritten. To add a
+# check, add it to the `checks` output of flake.nix.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  evaluate:
+    name: Evaluate flake
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - name: Check that all outputs evaluate
+        run: nix flake check --no-build
+      - name: List checks
+        id: checks
+        run: echo "checks=$(nix eval --json .#checks.x86_64-linux --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+
+  check:
+    name: ${{ matrix.check }}
+    needs: evaluate
+    if: needs.evaluate.outputs.checks != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.evaluate.outputs.checks) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: cachix/install-nix-action@v31
+      - name: Build check
+        env:
+          CHECK: ${{ matrix.check }}
+        run: nix build --print-build-logs ".#checks.x86_64-linux.\"$CHECK\""
