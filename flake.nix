@@ -45,6 +45,7 @@
           toolchain.override {
             extensions = ["llvm-tools-preview"];
           });
+
         craneArgs = {
           src = pkgs.lib.cleanSource ./.;
           strictDeps = true;
@@ -243,6 +244,8 @@
         };
 
         checks.build-rust = package;
+
+        checks.coverage = coverage;
 
         checks.format-nix-check = pkgs.runCommand "format-nix-check" {} ''
           cd ${self}
