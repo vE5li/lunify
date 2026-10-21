@@ -3,18 +3,18 @@ name = "lunify"
 authors = ["Lucas Pütz"]
 description = "A crate for converting Lua byte code to different versions and formats"
 categories = ["encoding"]
-keywords = ["lua", "bytecode"]
+keywords = ["bytecode", "lua"]
 version = "1.1.0"
 edition = "2021"
 homepage = "https://github.com/vE5li/lunify"
 repository = "https://github.com/vE5li/lunify"
 readme = "README.md"
 license = "MIT"
-exclude = ["test_files/", "LICENSE.md", "rustfmt.toml"]
+exclude = ["LICENSE.md", "rustfmt.toml", "test_files/"]
 
 [dependencies]
-serde = { version = "1.0.144", features = ["serde_derive"], optional = true }
 mlua = { version = "0.8", features = ["lua51", "vendored"], optional = true }
+serde = { version = "1.0.144", features = ["serde_derive"], optional = true }
 
 [features]
 debug = []
