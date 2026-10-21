@@ -1,46 +1,39 @@
+name: Code Quality
+
 on: [push]
 
-name: Code Quality
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   check:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-            profile: minimal
-            toolchain: nightly
-            override: true
-            components: clippy, rustfmt
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all --check
+        run: cargo fmt --all --check
 
       - name: Run clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Check documentation
+        run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
 
       - name: Install cargo-spellcheck
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-spellcheck
 
-      - uses: actions/checkout@v3
       - name: Run cargo-spellcheck
         run: cargo spellcheck --code 1
-
-      - name: Install cargo-deadlinks
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deadlinks
-
-      - name: Run cargo-deadlinks
-        run: cargo deadlinks -- --features integration
