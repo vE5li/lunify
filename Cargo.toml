@@ -1,6 +1,6 @@
 [package]
 name = "lunify"
-version = "1.1.0"
+version = "2.0.0"
 edition = "2021"
 description = "A crate for converting Lua byte code to different versions and formats"
 readme = "README.md"
