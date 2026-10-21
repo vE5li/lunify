@@ -94,7 +94,7 @@ impl<'a> ByteStream<'a> {
         Ok(&self.data[start..self.offset])
     }
 
-    pub fn string(&mut self) -> Result<String, LunifyError> {
+    pub fn string(&mut self) -> Result<Vec<u8>, LunifyError> {
         let length = self.size_t()? as usize;
         let start = self.offset;
 
@@ -104,7 +104,7 @@ impl<'a> ByteStream<'a> {
             return Err(LunifyError::InputTooShort);
         }
 
-        Ok(self.data[start..self.offset].iter().map(|&byte| byte as char).collect())
+        Ok(self.data[start..self.offset].to_vec())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -299,7 +299,15 @@ mod tests {
     fn string() {
         let mut stream = ByteStream::new(&[3, 0, 0, 0, 0, 0, 0, 0, b'L', b'U', b'A']);
         stream.set_format(TEST_FORMAT);
-        assert_eq!(stream.string(), Ok("LUA".to_owned()));
+        assert_eq!(stream.string(), Ok(b"LUA".to_vec()));
+        assert!(stream.is_empty());
+    }
+
+    #[test]
+    fn string_preserves_non_utf8_bytes() {
+        let mut stream = ByteStream::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0]);
+        stream.set_format(TEST_FORMAT);
+        assert_eq!(stream.string(), Ok(vec![0x80, 0xff, 0]));
         assert!(stream.is_empty());
     }
 

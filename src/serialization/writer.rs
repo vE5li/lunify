@@ -40,9 +40,9 @@ impl<'a> ByteWriter<'a> {
         Ok(())
     }
 
-    pub fn string(&mut self, value: &str) {
+    pub fn string(&mut self, value: &[u8]) {
         self.size_t(value.len() as i64);
-        self.slice(value.as_bytes());
+        self.slice(value);
     }
 
     pub fn finalize(self) -> Vec<u8> {
@@ -203,8 +203,15 @@ mod tests {
     #[test]
     fn string() {
         let mut writer = ByteWriter::new(&TEST_FORMAT);
-        writer.string("LUA");
+        writer.string(b"LUA");
         assert_eq!(writer.data, &[3, 0, 0, 0, b'L', b'U', b'A']);
+    }
+
+    #[test]
+    fn string_preserves_non_utf8_bytes() {
+        let mut writer = ByteWriter::new(&TEST_FORMAT);
+        writer.string(&[0x80, 0xff, 0]);
+        assert_eq!(writer.data, &[3, 0, 0, 0, 0x80, 0xff, 0]);
     }
 
     #[test]

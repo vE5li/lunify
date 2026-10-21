@@ -18,7 +18,7 @@ use crate::serialization::{ByteStream, ByteWriter};
 use crate::LunifyError;
 
 pub(crate) struct Function {
-    source_file: String,
+    source_file: Vec<u8>,
     line_defined: i64,
     last_line_defined: i64,
     parameter_count: u8,
@@ -29,7 +29,7 @@ pub(crate) struct Function {
     functions: Vec<Function>,
     local_variables: Vec<LocalVariable>,
     line_info: Vec<i64>,
-    upvalues: Vec<String>,
+    upvalues: Vec<Vec<u8>>,
 }
 
 impl Function {
@@ -173,7 +173,7 @@ impl Function {
         Ok(line_info)
     }
 
-    fn get_upvalues(byte_stream: &mut ByteStream) -> Result<Vec<String>, LunifyError> {
+    fn get_upvalues(byte_stream: &mut ByteStream) -> Result<Vec<Vec<u8>>, LunifyError> {
         let upvalue_count = byte_stream.integer()?;
         let mut upvalues = Vec::new();
 
@@ -213,7 +213,7 @@ impl Function {
         #[cfg(feature = "debug")]
         {
             println!("\n======== Function ========");
-            println!("source_file: {source_file}");
+            println!("source_file: {source_file:?}");
             println!("line_defined: {line_defined}");
             println!("last_line_defined: {last_line_defined}");
             println!("upvalue_count: {_upvalue_count}");

@@ -194,6 +194,20 @@ mod tests {
     }
 
     #[test]
+    fn non_utf8_string_constant_remains_unchanged() -> Result<(), LunifyError> {
+        let mut input_bytes = include_bytes!("../test_files/constants.luab").to_vec();
+        let original = b"is_false\0";
+        let replacement = [0xce, 0xde, 0xb1, 0xea, 0xcc, 0xe2, 0x80, 0xff, 0];
+        let offset = input_bytes.windows(original.len()).position(|bytes| bytes == original).unwrap();
+        input_bytes[offset..offset + replacement.len()].copy_from_slice(&replacement);
+
+        let output_bytes = unify(&input_bytes, &Format::default(), &Default::default())?;
+
+        assert!(output_bytes.windows(replacement.len()).any(|bytes| bytes == replacement));
+        Ok(())
+    }
+
+    #[test]
     fn custom_signature() -> Result<(), LunifyError> {
         let input_bytes = include_bytes!("../test_files/custom_signature.luab").to_vec();
         let output_format = Format::default();
