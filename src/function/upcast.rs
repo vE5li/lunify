@@ -581,9 +581,9 @@ mod tests {
             lua51::Instruction::Jump { a: 0, mode: SignedBx(-13) },
         ];
         let expected_constants = [
-            Constant::String("type\0".to_owned()),
-            Constant::String("table\0".to_owned()),
-            Constant::String("next\0".to_owned()),
+            Constant::String(b"type\0".to_vec()),
+            Constant::String(b"table\0".to_vec()),
+            Constant::String(b"next\0".to_vec()),
         ];
 
         assert_eq!(instructions, expected);

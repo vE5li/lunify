@@ -5,7 +5,7 @@ pub(crate) enum Constant {
     Nil,
     Boolean(bool),
     Number(Number),
-    String(String),
+    String(Vec<u8>),
 }
 
 pub(super) struct ConstantManager<'a> {
@@ -18,7 +18,7 @@ impl<'a> ConstantManager<'a> {
         let mut index = 0;
 
         let constant = loop {
-            let constant_name = format!("__%lunify%__temp{program_counter}_{index}\0");
+            let constant_name = format!("__%lunify%__temp{program_counter}_{index}\0").into_bytes();
             let constant = Constant::String(constant_name);
 
             if !self.constants.contains(&constant) {
@@ -33,10 +33,10 @@ impl<'a> ConstantManager<'a> {
     }
 
     pub(super) fn constant_for_str(&mut self, constant_str: &'static str) -> u64 {
-        let zero_terminated = format!("{constant_str}\0");
+        let zero_terminated = format!("{constant_str}\0").into_bytes();
 
         // If the constant already exists we don't need to add it again.
-        let matches = |constant: &_| matches!(constant, Constant::String(string) if string == zero_terminated.as_str());
+        let matches = |constant: &_| matches!(constant, Constant::String(string) if string == &zero_terminated);
         if let Some(index) = self.constants.iter().position(matches) {
             return index as u64;
         }
@@ -69,30 +69,30 @@ mod tests {
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.create_unique(9), 0);
-        assert_eq!(&constants[0], &Constant::String("__%lunify%__temp9_0\0".to_owned()));
+        assert_eq!(&constants[0], &Constant::String(b"__%lunify%__temp9_0\0".to_vec()));
     }
 
     #[test]
     fn create_unique_twice() {
-        let mut constants = vec![Constant::String("__%lunify%__temp9_0\0".to_owned())];
+        let mut constants = vec![Constant::String(b"__%lunify%__temp9_0\0".to_vec())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.create_unique(9), 1);
-        assert_eq!(&constants[1], &Constant::String("__%lunify%__temp9_1\0".to_owned()));
+        assert_eq!(&constants[1], &Constant::String(b"__%lunify%__temp9_1\0".to_vec()));
     }
 
     #[test]
     fn constant_for_str() {
-        let mut constants = vec![Constant::String("constant".to_owned())];
+        let mut constants = vec![Constant::String(b"constant".to_vec())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.constant_for_str("test"), 1);
-        assert_eq!(&constants[1], &Constant::String("test\0".to_owned()));
+        assert_eq!(&constants[1], &Constant::String(b"test\0".to_vec()));
     }
 
     #[test]
     fn constant_for_str_duplicate() {
-        let mut constants = vec![Constant::String("test\0".to_owned()), Constant::String("constant".to_owned())];
+        let mut constants = vec![Constant::String(b"test\0".to_vec()), Constant::String(b"constant".to_vec())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.constant_for_str("test"), 0);
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn constant_nil() {
-        let mut constants = vec![Constant::String("constant".to_owned())];
+        let mut constants = vec![Constant::String(b"constant".to_vec())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.constant_nil(), 1);
@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn constant_nil_duplicate() {
-        let mut constants = vec![Constant::Nil, Constant::String("constant".to_owned())];
+        let mut constants = vec![Constant::Nil, Constant::String(b"constant".to_vec())];
         let mut constant_manager = ConstantManager { constants: &mut constants };
 
         assert_eq!(constant_manager.constant_nil(), 0);
