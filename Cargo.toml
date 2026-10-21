@@ -1,15 +1,14 @@
 [package]
 name = "lunify"
-authors = ["Lucas Pütz"]
-description = "A crate for converting Lua byte code to different versions and formats"
-categories = ["encoding"]
-keywords = ["bytecode", "lua"]
 version = "1.1.0"
 edition = "2021"
+description = "A crate for converting Lua byte code to different versions and formats"
+readme = "README.md"
 homepage = "https://github.com/vE5li/lunify"
 repository = "https://github.com/vE5li/lunify"
-readme = "README.md"
 license = "MIT"
+keywords = ["bytecode", "lua"]
+categories = ["encoding"]
 exclude = ["LICENSE.md", "rustfmt.toml", "test_files/"]
 
 [dependencies]

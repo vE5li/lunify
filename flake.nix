@@ -39,12 +39,17 @@
 
         craneLib = (crane.mkLib pkgs).overrideToolchain (_: toolchain);
 
+        # The coverage report needs `llvm-profdata` and `llvm-cov`, which are
+        # only shipped with the `llvm-tools-preview` component.
+        coverageCraneLib = (crane.mkLib pkgs).overrideToolchain (_:
+          toolchain.override {
+            extensions = ["llvm-tools-preview"];
+          });
         craneArgs = {
           src = pkgs.lib.cleanSource ./.;
           strictDeps = true;
           nativeBuildInputs = [pkgs.pkg-config];
           buildInputs = [pkgs.openssl];
-          cargoVendorDir = null;
         };
 
         cargoArtifacts = craneLib.buildDepsOnly craneArgs;
@@ -53,6 +58,33 @@
           // {
             inherit cargoArtifacts;
             doCheck = false;
+          });
+
+        # HTML coverage report of the test suite, including a coverage badge at
+        # `badges/flat.svg`.
+        coverage = coverageCraneLib.mkCargoDerivation (craneArgs
+          // {
+            pname = "lunify-coverage";
+            cargoArtifacts = null;
+            doInstallCargoArtifacts = false;
+            nativeBuildInputs = craneArgs.nativeBuildInputs ++ [pkgs.grcov];
+            CARGO_INCREMENTAL = "0";
+            RUSTFLAGS = "-Cinstrument-coverage";
+            buildPhaseCargoCommand = ''
+              LLVM_PROFILE_FILE="$PWD/target/coverage/lunify-%p-%m.profraw" \
+                cargo test --features integration --no-fail-fast
+
+              grcov target/coverage \
+                --binary-path target/debug \
+                --source-dir . \
+                --output-type html \
+                --output-path coverage \
+                --branch \
+                --ignore-not-existing \
+                --ignore "/*" \
+                --ignore "target/*"
+            '';
+            installPhaseCommand = "cp -r coverage $out";
           });
 
         build-rust = pkgs.writeShellApplication {
@@ -167,7 +199,7 @@
         test-rust = pkgs.writeShellApplication {
           name = "test-rust";
           runtimeInputs = [toolchain];
-          text = "cargo test --workspace";
+          text = "cargo test --workspace --features integration";
         };
 
         tests = pkgs.writeShellApplication {
@@ -236,6 +268,26 @@
             cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           });
 
+        checks.doc-rust = craneLib.cargoDoc (craneArgs
+          // {
+            inherit cargoArtifacts;
+            cargoDocExtraArgs = "--no-deps --all-features";
+            RUSTDOCFLAGS = "--deny warnings";
+          });
+
+        checks.spellcheck-rust = craneLib.mkCargoDerivation (craneArgs
+          // {
+            inherit cargoArtifacts;
+            pname = "lunify-spellcheck";
+            doInstallCargoArtifacts = false;
+            nativeBuildInputs = craneArgs.nativeBuildInputs ++ [pkgs.cargo-spellcheck];
+            buildPhaseCargoCommand = ''
+              export HOME="$TMPDIR"
+              cargo spellcheck --code 1
+            '';
+            installPhaseCommand = "touch $out";
+          });
+
         checks.lint-toml = pkgs.runCommand "lint-toml" {} ''
           cd ${self}
           ${pkgs.lib.getExe lint-toml}
@@ -245,9 +297,12 @@
         checks.test-rust = craneLib.cargoTest (craneArgs
           // {
             inherit cargoArtifacts;
+            cargoTestExtraArgs = "--features integration";
           });
 
         packages.default = package;
+
+        packages.coverage = coverage;
 
         devShells.default = pkgs.mkShell {
           packages = [toolchain pkgs.pkg-config pkgs.openssl build-rust build format format-rust format-rust-check format-nix format-nix-check format-toml format-toml-check format-check lint lint-toml lint-rust test-rust tests];
