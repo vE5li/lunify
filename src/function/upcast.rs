@@ -1,6 +1,6 @@
 use super::builder::FunctionBuilder;
 use super::constant::{Constant, ConstantManager};
-use super::instruction::{lua50, lua51, Bx, ConstantRegister, Generic, LuaInstruction, Register, Settings, SignedBx, Unused, BC};
+use super::instruction::{BC, Bx, ConstantRegister, Generic, LuaInstruction, Register, Settings, SignedBx, Unused, lua50, lua51};
 use crate::LunifyError;
 
 pub(crate) fn upcast(
@@ -359,7 +359,7 @@ pub(crate) fn upcast(
 
 #[cfg(test)]
 mod tests {
-    use super::{lua50, lua51, Bx, BC};
+    use super::{BC, Bx, lua50, lua51};
     use crate::function::constant::Constant;
     use crate::function::instruction::{ConstantRegister, Generic, Register, SignedBx, Unused};
     use crate::function::upcast;

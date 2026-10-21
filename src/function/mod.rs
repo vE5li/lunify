@@ -10,12 +10,12 @@ use std::fmt::Debug;
 use self::constant::Constant;
 use self::convert::convert;
 use self::instruction::LuaInstruction;
-pub use self::instruction::{lua50, lua51, InstructionLayout, OperandType, Settings};
+pub use self::instruction::{InstructionLayout, OperandType, Settings, lua50, lua51};
 use self::local::LocalVariable;
 use self::upcast::upcast;
+use crate::LunifyError;
 use crate::format::LuaVersion;
 use crate::serialization::{ByteStream, ByteWriter};
-use crate::LunifyError;
 
 pub(crate) struct Function {
     source_file: Vec<u8>,
