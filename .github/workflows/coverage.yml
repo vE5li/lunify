@@ -16,7 +16,11 @@ jobs:
       - uses: cachix/install-nix-action@v31
 
       - name: Generate coverage report
-        run: nix build --print-build-logs --out-link coverage .#coverage
+        # Copy the report out of the Nix store, since the badge sync runs in a
+        # Docker container that only has the workspace mounted.
+        run: |
+          nix build --print-build-logs --out-link result-coverage .#coverage
+          cp --recursive --dereference --no-preserve=mode result-coverage coverage
 
       - uses: actions/upload-artifact@v4
         with:
