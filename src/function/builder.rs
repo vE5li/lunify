@@ -1,6 +1,6 @@
 use super::Settings;
-use crate::lua51::Instruction;
 use crate::LunifyError;
+use crate::lua51::Instruction;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct InstructionContext {
@@ -177,7 +177,7 @@ mod tests {
     use super::FunctionBuilder;
     use crate::function::builder::InstructionContext;
     use crate::function::instruction::{Bx, SignedBx};
-    use crate::{lua51, LunifyError};
+    use crate::{LunifyError, lua51};
 
     #[test]
     fn instruction_context_new() {

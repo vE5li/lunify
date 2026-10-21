@@ -3,7 +3,7 @@ use std::ops::Range;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operand::{Bx, ConstantRegister, Generic, Opcode, Register, SignedBx, Unused, A, BC};
+use super::operand::{A, BC, Bx, ConstantRegister, Generic, Opcode, Register, SignedBx, Unused};
 use super::{InstructionLayout, OperandType};
 use crate::LunifyError;
 

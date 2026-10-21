@@ -210,8 +210,8 @@ mod tests {
     #[test]
     fn string_preserves_non_utf8_bytes() {
         let mut writer = ByteWriter::new(&TEST_FORMAT);
-        writer.string(&[0x80, 0xff, 0]);
-        assert_eq!(writer.data, &[3, 0, 0, 0, 0x80, 0xff, 0]);
+        writer.string(&[0x80, 0xFF, 0]);
+        assert_eq!(writer.data, &[3, 0, 0, 0, 0x80, 0xFF, 0]);
     }
 
     #[test]

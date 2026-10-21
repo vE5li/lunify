@@ -9,6 +9,6 @@ mod operand;
 mod settings;
 
 pub(crate) use self::interface::LuaInstruction;
-pub(crate) use self::operand::{Bx, ConstantRegister, Generic, Register, SignedBx, Unused, BC};
+pub(crate) use self::operand::{BC, Bx, ConstantRegister, Generic, Register, SignedBx, Unused};
 pub use self::operand::{InstructionLayout, OperandType};
 pub use self::settings::Settings;

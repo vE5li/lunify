@@ -1,5 +1,5 @@
 use super::OperandLayout;
-use crate::{lua50, lua51, LunifyError, Settings};
+use crate::{LunifyError, Settings, lua50, lua51};
 
 pub(crate) trait ModeGet<T> {
     fn get(value: u64, settings: &Settings, layout: &OperandLayout) -> Self;
@@ -127,7 +127,7 @@ impl ModeOffset for ConstantRegister {
 mod tests {
     use super::{ConstantRegister, Generic, ModeGet, ModeOffset, Register, Unused};
     use crate::function::instruction::operand::mode::ModePut;
-    use crate::{lua50, lua51, LunifyError, Settings};
+    use crate::{LunifyError, Settings, lua50, lua51};
 
     fn mode_test_get<T, L>(value: u64, expected: T)
     where

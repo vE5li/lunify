@@ -1,7 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::operand::{Bx, Generic, Opcode, SignedBx, A, BC};
+use super::operand::{A, BC, Bx, Generic, Opcode, SignedBx};
 use super::{ConstantRegister, InstructionLayout, OperandType, Register, Unused};
 use crate::LunifyError;
 

@@ -12,7 +12,7 @@ mod function;
 pub use error::LunifyError;
 pub use format::{BitWidth, Endianness, Format};
 use function::Function;
-pub use function::{lua50, lua51, InstructionLayout, OperandType, Settings};
+pub use function::{InstructionLayout, OperandType, Settings, lua50, lua51};
 
 use crate::format::LuaVersion;
 use crate::serialization::{ByteStream, ByteWriter};
@@ -67,8 +67,8 @@ pub fn unify(input_bytes: &[u8], output_format: &Format, settings: &Settings) ->
 
 #[cfg(test)]
 mod tests {
-    use super::{unify, Format, LunifyError};
-    use crate::{lua51, BitWidth, Endianness, Settings};
+    use super::{Format, LunifyError, unify};
+    use crate::{BitWidth, Endianness, Settings, lua51};
 
     #[cfg(feature = "integration")]
     fn test_output(byte_code: &[u8]) {
@@ -197,7 +197,7 @@ mod tests {
     fn non_utf8_string_constant_remains_unchanged() -> Result<(), LunifyError> {
         let mut input_bytes = include_bytes!("../test_files/constants.luab").to_vec();
         let original = b"is_false\0";
-        let replacement = [0xce, 0xde, 0xb1, 0xea, 0xcc, 0xe2, 0x80, 0xff, 0];
+        let replacement = [0xCE, 0xDE, 0xB1, 0xEA, 0xCC, 0xE2, 0x80, 0xFF, 0];
         let offset = input_bytes.windows(original.len()).position(|bytes| bytes == original).unwrap();
         input_bytes[offset..offset + replacement.len()].copy_from_slice(&replacement);
 

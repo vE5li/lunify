@@ -305,9 +305,9 @@ mod tests {
 
     #[test]
     fn string_preserves_non_utf8_bytes() {
-        let mut stream = ByteStream::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0x80, 0xff, 0]);
+        let mut stream = ByteStream::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0x80, 0xFF, 0]);
         stream.set_format(TEST_FORMAT);
-        assert_eq!(stream.string(), Ok(vec![0x80, 0xff, 0]));
+        assert_eq!(stream.string(), Ok(vec![0x80, 0xFF, 0]));
         assert!(stream.is_empty());
     }
 

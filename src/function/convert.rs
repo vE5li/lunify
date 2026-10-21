@@ -1,6 +1,6 @@
 use super::builder::FunctionBuilder;
-use crate::function::instruction::{Generic, LuaInstruction, BC};
-use crate::{lua51, LunifyError, Settings};
+use crate::function::instruction::{BC, Generic, LuaInstruction};
+use crate::{LunifyError, Settings, lua51};
 
 pub(crate) fn convert(
     instructions: Vec<lua51::Instruction>,
@@ -109,10 +109,10 @@ pub(crate) fn convert(
 
 #[cfg(test)]
 mod tests {
-    use super::{lua51, BC};
+    use super::{BC, lua51};
     use crate::function::convert;
     use crate::function::instruction::{Bx, Generic, Unused};
-    use crate::{lua50, LunifyError, Settings};
+    use crate::{LunifyError, Settings, lua50};
 
     fn test_settings() -> Settings<'static> {
         let lua50 = lua50::Settings::default();

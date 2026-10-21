@@ -1,4 +1,4 @@
-use crate::{lua50, lua51, LunifyError, Settings};
+use crate::{LunifyError, Settings, lua50, lua51};
 
 mod layout;
 mod mode;
@@ -140,9 +140,9 @@ impl OperandOffset for SignedBx {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Generic, Opcode, OperandGet, OperandOffset, OperandPut, Register, A};
-    use crate::function::instruction::{Bx, ConstantRegister, SignedBx, BC};
-    use crate::{lua50, lua51, InstructionLayout, Settings};
+    use super::{A, Generic, Opcode, OperandGet, OperandOffset, OperandPut, Register};
+    use crate::function::instruction::{BC, Bx, ConstantRegister, SignedBx};
+    use crate::{InstructionLayout, Settings, lua50, lua51};
 
     fn operand_test<T>(operand: T, value: u64)
     where
