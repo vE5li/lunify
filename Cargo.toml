@@ -12,8 +12,8 @@ categories = ["encoding"]
 exclude = ["LICENSE.md", "rustfmt.toml", "test_files/"]
 
 [dependencies]
-mlua = { version = "0.8", features = ["lua51", "vendored"], optional = true }
-serde = { version = "1.0.144", features = ["serde_derive"], optional = true }
+mlua = { version = "0.12.2", features = ["lua51", "vendored"], optional = true }
+serde = { version = "1.0.229", features = ["serde_derive"], optional = true }
 
 [features]
 debug = []

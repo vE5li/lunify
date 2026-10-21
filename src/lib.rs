@@ -76,7 +76,7 @@ mod tests {
 
         let lua = Lua::new();
         lua.load(byte_code).exec().unwrap();
-        assert_eq!(lua.globals().get::<_, LuaNumber>("result").unwrap(), 9.0);
+        assert_eq!(lua.globals().get::<LuaNumber>("result").unwrap(), 9.0);
     }
 
     #[test]
