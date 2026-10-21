@@ -10,25 +10,22 @@
     };
   };
 
-  outputs =
-    {
-      nixpkgs,
-      flake-utils,
-      rust-overlay,
-      ...
-    }:
+  outputs = {
+    nixpkgs,
+    flake-utils,
+    rust-overlay,
+    ...
+  }:
     flake-utils.lib.eachDefaultSystem (
-      system:
-      let
+      system: let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ (import rust-overlay) ];
+          overlays = [(import rust-overlay)];
         };
         rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-      in
-      {
+      in {
         devShells.default = pkgs.mkShell {
-          packages = [ rustToolchain ];
+          packages = [rustToolchain];
         };
       }
     );
