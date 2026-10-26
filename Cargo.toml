@@ -9,7 +9,7 @@ repository = "https://github.com/vE5li/lunify"
 license = "MIT"
 keywords = ["bytecode", "lua"]
 categories = ["encoding"]
-exclude = ["LICENSE.md", "rustfmt.toml", "test_files/"]
+include = ["/LICENSE.md", "/README.md", "/src/**/*.rs", "/test_files/*.luab"]
 
 [dependencies]
 mlua = { version = "0.12.2", features = ["lua51", "vendored"], optional = true }

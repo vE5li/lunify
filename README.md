@@ -15,7 +15,7 @@ Currently Lua 5.0 and Lua 5.1 are supported inputs.
 use lunify::{Format, LunifyError, Endianness, BitWidth, unify};
 
 // Lua byte code in any suppored format
-let input_bytes = include_bytes!("../test_files/lua50.luab");
+let input_bytes = include_bytes!("test_files/lua50.luab");
 
 // Desired output format. May specify pointer width, endianness, sizes of datatypes, ...
 let output_format = Format {
