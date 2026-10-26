@@ -2,6 +2,7 @@
 name = "lunify"
 version = "2.0.0"
 edition = "2024"
+rust-version = "1.88"
 description = "A crate for converting Lua byte code to different versions and formats"
 readme = "README.md"
 homepage = "https://github.com/vE5li/lunify"
