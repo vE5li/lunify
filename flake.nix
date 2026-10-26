@@ -107,7 +107,7 @@
           runtimeInputs = [toolchain];
           text = ''
             cargo fmt --all -- \
-              --config condense_wildcard_suffixes=true,edition=2021,fn_call_width=80,format_macro_matchers=true,format_strings=true,group_imports=StdExternalCrate,hex_literal_case=Upper,imports_granularity=Module,max_width=140,overflow_delimited_expr=true,reorder_impl_items=true,style_edition=2024,use_field_init_shorthand=true,wrap_comments=true
+              --config condense_wildcard_suffixes=true,edition=2024,fn_call_width=80,format_macro_matchers=true,format_strings=true,group_imports=StdExternalCrate,hex_literal_case=Upper,imports_granularity=Module,max_width=140,overflow_delimited_expr=true,reorder_impl_items=true,style_edition=2024,use_field_init_shorthand=true,wrap_comments=true
           '';
         };
 
@@ -116,7 +116,7 @@
           runtimeInputs = [toolchain];
           text = ''
             cargo fmt --all -- --check \
-              --config condense_wildcard_suffixes=true,edition=2021,fn_call_width=80,format_macro_matchers=true,format_strings=true,group_imports=StdExternalCrate,hex_literal_case=Upper,imports_granularity=Module,max_width=140,overflow_delimited_expr=true,reorder_impl_items=true,style_edition=2024,use_field_init_shorthand=true,wrap_comments=true
+              --config condense_wildcard_suffixes=true,edition=2024,fn_call_width=80,format_macro_matchers=true,format_strings=true,group_imports=StdExternalCrate,hex_literal_case=Upper,imports_granularity=Module,max_width=140,overflow_delimited_expr=true,reorder_impl_items=true,style_edition=2024,use_field_init_shorthand=true,wrap_comments=true
           '';
         };
 
