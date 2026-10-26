@@ -287,19 +287,19 @@ pub(crate) fn upcast(
                             while instruction_index < builder.get_program_counter() {
                                 let instruction = builder.get_instruction(instruction_index);
 
-                                if let Some(stack_destination) = instruction.stack_destination() {
-                                    if offset + stack_destination.start as i64 - 1 == (a + settings.output.fields_per_flush) as i64 {
-                                        // Add a new `SETLIST` instruction.
-                                        builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
-                                            a,
-                                            mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
-                                        });
+                                if let Some(stack_destination) = instruction.stack_destination()
+                                    && offset + stack_destination.start as i64 - 1 == (a + settings.output.fields_per_flush) as i64
+                                {
+                                    // Add a new `SETLIST` instruction.
+                                    builder.insert_extra_instruction(instruction_index, lua51::Instruction::SetList {
+                                        a,
+                                        mode: BC(Generic(settings.output.fields_per_flush), Generic(page)),
+                                    });
 
-                                        offset -= settings.output.fields_per_flush as i64;
-                                        page += 1;
-                                        instruction_index += 1;
-                                        continue;
-                                    }
+                                    offset -= settings.output.fields_per_flush as i64;
+                                    page += 1;
+                                    instruction_index += 1;
+                                    continue;
                                 }
 
                                 builder.get_instruction(instruction_index).move_stack_accesses(a, offset);
